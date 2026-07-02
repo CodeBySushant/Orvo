@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:on_audio_query_pluse/on_audio_query.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../library/providers/library_providers.dart';
 
@@ -17,16 +17,14 @@ class PermissionGate extends ConsumerStatefulWidget {
 
 class _PermissionGateState extends ConsumerState<PermissionGate>
     with WidgetsBindingObserver {
-  final OnAudioQuery _query = OnAudioQuery();
   _GateState _state = _GateState.checking;
   bool _requesting = false;
+  bool _permanentlyDenied = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // Check AFTER the first frame so the plugin is fully attached to the
-    // Activity — requesting during startup returns false without a dialog.
     WidgetsBinding.instance.addPostFrameCallback((_) => _check());
   }
 
@@ -38,13 +36,24 @@ class _PermissionGateState extends ConsumerState<PermissionGate>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Re-check when returning from system Settings.
     if (state == AppLifecycleState.resumed && _state != _GateState.granted) {
       _check();
     }
   }
 
+  /// Android 13+ uses READ_MEDIA_AUDIO (Permission.audio); older Android
+  /// uses READ_EXTERNAL_STORAGE (Permission.storage). Checking both covers
+  /// every API level — the irrelevant one simply reports denied.
+  Future<bool> _isGranted() async {
+    final audio = await Permission.audio.status;
+    final storage = await Permission.storage.status;
+    debugPrint('[Orvo] gate status: audio=$audio storage=$storage');
+    return audio.isGranted || storage.isGranted;
+  }
+
   Future<void> _check() async {
-    final granted = await _query.permissionsStatus();
+    final granted = await _isGranted();
     if (!mounted) return;
     if (granted) {
       _grant();
@@ -56,16 +65,42 @@ class _PermissionGateState extends ConsumerState<PermissionGate>
   Future<void> _request() async {
     if (_requesting) return;
     _requesting = true;
-    bool granted = await _query.permissionsStatus();
-    if (!granted) {
-      granted = await _query.permissionsRequest();
-    }
-    _requesting = false;
-    if (!mounted) return;
-    if (granted) {
-      _grant();
-    } else {
-      setState(() => _state = _GateState.denied);
+    try {
+      if (await _isGranted()) {
+        if (mounted) _grant();
+        return;
+      }
+
+      // Requesting both in one call shows a single dialog for whichever
+      // permission applies to this Android version.
+      final results =
+          await [Permission.audio, Permission.storage].request();
+      debugPrint('[Orvo] gate request results: $results');
+
+      final audio = results[Permission.audio];
+      final storage = results[Permission.storage];
+      final granted =
+          (audio?.isGranted ?? false) || (storage?.isGranted ?? false);
+
+      if (!mounted) return;
+      if (granted) {
+        _grant();
+        return;
+      }
+
+      // "Don't allow" twice (or a policy block) — the dialog will never
+      // show again; the user must enable it from app settings.
+      final permanent = (audio?.isPermanentlyDenied ?? false) &&
+          (storage == null || !storage.isGranted);
+      setState(() {
+        _permanentlyDenied = permanent;
+        _state = _GateState.denied;
+      });
+      if (permanent) {
+        await openAppSettings();
+      }
+    } finally {
+      _requesting = false;
     }
   }
 
@@ -85,15 +120,22 @@ class _PermissionGateState extends ConsumerState<PermissionGate>
       case _GateState.checking:
         return const Scaffold(body: SizedBox.shrink());
       case _GateState.denied:
-        return _PermissionScreen(onGrant: _request);
+        return _PermissionScreen(
+          onGrant: _request,
+          permanentlyDenied: _permanentlyDenied,
+        );
     }
   }
 }
 
 class _PermissionScreen extends StatelessWidget {
-  const _PermissionScreen({required this.onGrant});
+  const _PermissionScreen({
+    required this.onGrant,
+    required this.permanentlyDenied,
+  });
 
   final VoidCallback onGrant;
+  final bool permanentlyDenied;
 
   @override
   Widget build(BuildContext context) {
@@ -136,14 +178,19 @@ class _PermissionScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(16)),
                   ),
                   onPressed: onGrant,
-                  child: const Text('Allow music access'),
+                  child: Text(permanentlyDenied
+                      ? 'Open settings'
+                      : 'Allow music access'),
                 ),
               ),
               const SizedBox(height: 12),
               Center(
                 child: Text(
-                  'If you already allowed it, tap again to continue.',
+                  permanentlyDenied
+                      ? 'Enable "Music and audio" for Orvo in Settings, then come back.'
+                      : 'If you already allowed it, tap again to continue.',
                   style: theme.textTheme.bodySmall,
+                  textAlign: TextAlign.center,
                 ),
               ),
             ],

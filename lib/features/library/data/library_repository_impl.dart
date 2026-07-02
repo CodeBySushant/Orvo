@@ -1,11 +1,20 @@
 import 'package:flutter/foundation.dart';
 import 'package:on_audio_query_pluse/on_audio_query.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../domain/entities.dart';
 import '../domain/library_repository.dart';
 
 /// Media-store backed implementation. on_audio_query already runs its queries
 /// on the platform side, off the UI thread, so scanning never blocks frames.
+///
+/// Permission NOTE: all permission checks go through permission_handler.
+/// on_audio_query_pluse's own permissionsStatus()/permissionsRequest() are
+/// unreliable on Android 13+ (returns false without ever showing a dialog),
+/// so they are never used. The PermissionGate owns *requesting*; this class
+/// only *verifies* before querying, so queries never run unauthorized (which
+/// crashes the plugin). Android Auto also enters through here, hence the
+/// defensive check even though the gate normally runs first.
 class LibraryRepositoryImpl implements LibraryRepository {
   LibraryRepositoryImpl(this._query);
 
@@ -14,40 +23,23 @@ class LibraryRepositoryImpl implements LibraryRepository {
   /// Filter out notification blips / voice notes shorter than this.
   static const _minDuration = Duration(seconds: 20);
 
-  /// Single-flight permission gate. songs()/albums()/artists() run
-  /// concurrently at startup — if each requested permission independently,
-  /// Android rejects the parallel requests ("Can request only one set of
-  /// permissions at a time") and the plugin's controller double-replies and
-  /// crashes. Memoizing the future guarantees exactly ONE request, which all
-  /// callers await.
-  Future<bool>? _permissionFuture;
-
-  Future<bool> _ensurePermission() =>
-      _permissionFuture ??= _checkAndRequest();
-
-  Future<bool> _checkAndRequest() async {
+  Future<bool> _hasPermission() async {
     try {
-      var granted = await _query.permissionsStatus();
-      debugPrint('[Orvo] plugin permissionsStatus=$granted');
-      if (!granted) {
-        granted = await _query.permissionsRequest();
-        debugPrint('[Orvo] plugin permissionsRequest -> $granted');
-      }
-      if (!granted) {
-        // Allow a later retry (e.g. Rescan button) instead of caching a "no".
-        _permissionFuture = null;
-      }
-      return granted;
+      // Android 13+ -> READ_MEDIA_AUDIO; older -> READ_EXTERNAL_STORAGE.
+      final audio = await Permission.audio.status;
+      if (audio.isGranted) return true;
+      final storage = await Permission.storage.status;
+      debugPrint('[Orvo] repo status: audio=$audio storage=$storage');
+      return storage.isGranted;
     } catch (e) {
-      debugPrint('[Orvo] permission ERROR: $e');
-      _permissionFuture = null;
+      debugPrint('[Orvo] repo permission ERROR: $e');
       return false;
     }
   }
 
   @override
   Future<List<Song>> songs() async {
-    if (!await _ensurePermission()) return const [];
+    if (!await _hasPermission()) return const [];
     try {
       final models = await _query.querySongs(
         sortType: SongSortType.DATE_ADDED,
@@ -73,7 +65,7 @@ class LibraryRepositoryImpl implements LibraryRepository {
 
   @override
   Future<List<Album>> albums() async {
-    if (!await _ensurePermission()) return const [];
+    if (!await _hasPermission()) return const [];
     try {
       final models = await _query.queryAlbums(
         sortType: AlbumSortType.ALBUM,
@@ -96,7 +88,7 @@ class LibraryRepositoryImpl implements LibraryRepository {
 
   @override
   Future<List<Artist>> artists() async {
-    if (!await _ensurePermission()) return const [];
+    if (!await _hasPermission()) return const [];
     try {
       final models = await _query.queryArtists(
         sortType: ArtistSortType.ARTIST,
@@ -119,6 +111,7 @@ class LibraryRepositoryImpl implements LibraryRepository {
 
   @override
   Future<List<Song>> albumSongs(int albumId) async {
+    if (!await _hasPermission()) return const [];
     final models = await _query.queryAudiosFrom(
       AudiosFromType.ALBUM_ID,
       albumId,
@@ -132,6 +125,7 @@ class LibraryRepositoryImpl implements LibraryRepository {
 
   @override
   Future<List<Song>> artistSongs(int artistId) async {
+    if (!await _hasPermission()) return const [];
     final models = await _query.queryAudiosFrom(
       AudiosFromType.ARTIST_ID,
       artistId,
