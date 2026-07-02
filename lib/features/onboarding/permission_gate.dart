@@ -42,14 +42,16 @@ class _PermissionGateState extends ConsumerState<PermissionGate>
     }
   }
 
-  /// Android 13+ uses READ_MEDIA_AUDIO (Permission.audio); older Android
-  /// uses READ_EXTERNAL_STORAGE (Permission.storage). Checking both covers
-  /// every API level — the irrelevant one simply reports denied.
+  /// on_audio_query's native check on Android 13+ requires BOTH
+  /// READ_MEDIA_AUDIO (Permission.audio) and READ_MEDIA_IMAGES
+  /// (Permission.photos). On Android 12 and below, permission_handler maps
+  /// both of these to READ_EXTERNAL_STORAGE, so the same condition works on
+  /// every API level.
   Future<bool> _isGranted() async {
     final audio = await Permission.audio.status;
-    final storage = await Permission.storage.status;
-    debugPrint('[Orvo] gate status: audio=$audio storage=$storage');
-    return audio.isGranted || storage.isGranted;
+    final photos = await Permission.photos.status;
+    debugPrint('[Orvo] gate status: audio=$audio photos=$photos');
+    return audio.isGranted && photos.isGranted;
   }
 
   Future<void> _check() async {
@@ -71,16 +73,14 @@ class _PermissionGateState extends ConsumerState<PermissionGate>
         return;
       }
 
-      // Requesting both in one call shows a single dialog for whichever
-      // permission applies to this Android version.
       final results =
-          await [Permission.audio, Permission.storage].request();
+          await [Permission.audio, Permission.photos].request();
       debugPrint('[Orvo] gate request results: $results');
 
       final audio = results[Permission.audio];
-      final storage = results[Permission.storage];
+      final photos = results[Permission.photos];
       final granted =
-          (audio?.isGranted ?? false) || (storage?.isGranted ?? false);
+          (audio?.isGranted ?? false) && (photos?.isGranted ?? false);
 
       if (!mounted) return;
       if (granted) {
@@ -88,10 +88,12 @@ class _PermissionGateState extends ConsumerState<PermissionGate>
         return;
       }
 
-      // "Don't allow" twice (or a policy block) — the dialog will never
-      // show again; the user must enable it from app settings.
-      final permanent = (audio?.isPermanentlyDenied ?? false) &&
-          (storage == null || !storage.isGranted);
+      // Permanently denied, or "limited" photo access chosen on Android 14+
+      // ("Select photos..." grants a partial permission the media-store
+      // plugin can't use) — the fix for both lives in system Settings.
+      final permanent = (audio?.isPermanentlyDenied ?? false) ||
+          (photos?.isPermanentlyDenied ?? false) ||
+          (photos?.isLimited ?? false);
       setState(() {
         _permanentlyDenied = permanent;
         _state = _GateState.denied;
@@ -163,8 +165,9 @@ class _PermissionScreen extends StatelessWidget {
                   style: theme.textTheme.displayLarge),
               const SizedBox(height: 14),
               Text(
-                'Orvo plays the songs already on this device. Allow music access '
-                'to build your library — nothing ever leaves your phone.',
+                'Orvo plays the songs already on this device. Allow music '
+                'and photo access to build your library (album art needs the '
+                'photo permission) — nothing ever leaves your phone.',
                 style: theme.textTheme.bodyLarge!.copyWith(
                     color: theme.colorScheme.onSurface.withOpacity(.65)),
               ),
@@ -180,15 +183,17 @@ class _PermissionScreen extends StatelessWidget {
                   onPressed: onGrant,
                   child: Text(permanentlyDenied
                       ? 'Open settings'
-                      : 'Allow music access'),
+                      : 'Allow access'),
                 ),
               ),
               const SizedBox(height: 12),
               Center(
                 child: Text(
                   permanentlyDenied
-                      ? 'Enable "Music and audio" for Orvo in Settings, then come back.'
-                      : 'If you already allowed it, tap again to continue.',
+                      ? 'In Settings → Permissions, allow "Music and audio" '
+                          'and set "Photos and videos" to Always allow all.'
+                      : 'Choose "Allow all" if asked about photos — partial '
+                          'access can\'t read album art.',
                   style: theme.textTheme.bodySmall,
                   textAlign: TextAlign.center,
                 ),

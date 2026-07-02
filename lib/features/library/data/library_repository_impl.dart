@@ -8,13 +8,12 @@ import '../domain/library_repository.dart';
 /// Media-store backed implementation. on_audio_query already runs its queries
 /// on the platform side, off the UI thread, so scanning never blocks frames.
 ///
-/// Permission NOTE: all permission checks go through permission_handler.
-/// on_audio_query_pluse's own permissionsStatus()/permissionsRequest() are
-/// unreliable on Android 13+ (returns false without ever showing a dialog),
-/// so they are never used. The PermissionGate owns *requesting*; this class
-/// only *verifies* before querying, so queries never run unauthorized (which
-/// crashes the plugin). Android Auto also enters through here, hence the
-/// defensive check even though the gate normally runs first.
+/// Permission NOTE: the plugin's native check on Android 13+ requires BOTH
+/// READ_MEDIA_AUDIO and READ_MEDIA_IMAGES, and calling any query without them
+/// triggers a double-reply crash inside the plugin. So this class verifies
+/// (never requests) via permission_handler before every query. The
+/// PermissionGate owns requesting; this defensive check exists because
+/// Android Auto enters through here directly.
 class LibraryRepositoryImpl implements LibraryRepository {
   LibraryRepositoryImpl(this._query);
 
@@ -25,12 +24,15 @@ class LibraryRepositoryImpl implements LibraryRepository {
 
   Future<bool> _hasPermission() async {
     try {
-      // Android 13+ -> READ_MEDIA_AUDIO; older -> READ_EXTERNAL_STORAGE.
+      // Android 13+: audio -> READ_MEDIA_AUDIO, photos -> READ_MEDIA_IMAGES.
+      // Android <=12: permission_handler maps both to READ_EXTERNAL_STORAGE.
       final audio = await Permission.audio.status;
-      if (audio.isGranted) return true;
-      final storage = await Permission.storage.status;
-      debugPrint('[Orvo] repo status: audio=$audio storage=$storage');
-      return storage.isGranted;
+      final photos = await Permission.photos.status;
+      final ok = audio.isGranted && photos.isGranted;
+      if (!ok) {
+        debugPrint('[Orvo] repo status: audio=$audio photos=$photos');
+      }
+      return ok;
     } catch (e) {
       debugPrint('[Orvo] repo permission ERROR: $e');
       return false;

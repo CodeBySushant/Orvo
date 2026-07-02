@@ -1,7 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
-    <!-- Media library access -->
+    <!-- Media library access.
+         NOTE: on_audio_query's internal check on Android 13+ requires BOTH
+         READ_MEDIA_AUDIO and READ_MEDIA_IMAGES — audio alone fails. -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32"/>
     <!-- Background playback -->
