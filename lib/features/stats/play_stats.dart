@@ -8,27 +8,103 @@ import '../library/domain/entities.dart';
 import '../library/providers/library_providers.dart';
 import '../player/providers/player_providers.dart';
 
-/// Counts a "play" when a track has been the current item for 15 seconds —
-/// skipping through songs doesn't pollute Most Played.
+/// Counts a "play" when a track has been LISTENED TO for 15 seconds.
+///
+/// FIX (#8): the old implementation armed a 15-second wall-clock timer as
+/// soon as a track became current — so playing 2 seconds, pausing, and
+/// waiting still counted as a play. It also never counted replays on
+/// repeat-one, because the media item stream doesn't re-emit when a track
+/// loops. Now:
+///  - a Stopwatch accumulates only actual playing time (paused time doesn't
+///    count), and the play is recorded once 15 listened seconds accumulate;
+///  - a position snap back to the start of the same track (repeat-one loop
+///    or a manual restart) begins a fresh "spin" that can count again.
 class PlayTracker {
   PlayTracker(this._ref);
 
   final Ref _ref;
-  StreamSubscription<MediaItem?>? _sub;
+
+  StreamSubscription<MediaItem?>? _itemSub;
+  StreamSubscription<bool>? _playingSub;
+  StreamSubscription<Duration>? _positionSub;
   Timer? _timer;
-  int? _lastRecordedFor;
+
+  final Stopwatch _listened = Stopwatch();
+  int? _songId;
+  bool _recorded = false;
+  bool _playing = false;
+  Duration _lastPosition = Duration.zero;
+
+  static const _threshold = Duration(seconds: 15);
 
   void start() {
-    _sub = _ref.read(audioHandlerProvider).mediaItem.listen((item) {
-      _timer?.cancel();
-      final songId = item?.extras?['songId'] as int?;
-      if (songId == null || songId == _lastRecordedFor) return;
-      _timer = Timer(const Duration(seconds: 15), () => _record(songId));
+    final handler = _ref.read(audioHandlerProvider);
+
+    _itemSub = handler.mediaItem.listen((item) {
+      _beginSpin(item?.extras?['songId'] as int?);
+    });
+
+    _playingSub = handler.playbackState
+        .map((s) => s.playing)
+        .distinct()
+        .listen((playing) {
+      _playing = playing;
+      if (playing) {
+        _listened.start();
+        _schedule();
+      } else {
+        _listened.stop();
+        _timer?.cancel();
+      }
+    });
+
+    _positionSub = AudioService.position.listen((pos) {
+      // Same track snapped back to the start after real progress =
+      // repeat-one loop or manual restart → new spin, can count again.
+      if (pos < const Duration(seconds: 2) &&
+          _lastPosition > const Duration(seconds: 10)) {
+        _beginSpin(_songId, keepSong: true);
+      }
+      _lastPosition = pos;
     });
   }
 
-  Future<void> _record(int songId) async {
-    _lastRecordedFor = songId;
+  void _beginSpin(int? songId, {bool keepSong = false}) {
+    _timer?.cancel();
+    _listened
+      ..stop()
+      ..reset();
+    if (!keepSong) {
+      _songId = songId;
+      _lastPosition = Duration.zero;
+    }
+    _recorded = false;
+    if (_songId != null && _playing) {
+      _listened.start();
+      _schedule();
+    }
+  }
+
+  void _schedule() {
+    _timer?.cancel();
+    if (_songId == null || _recorded) return;
+    final remaining = _threshold - _listened.elapsed;
+    if (remaining <= Duration.zero) {
+      _record();
+    } else {
+      _timer = Timer(remaining, _record);
+    }
+  }
+
+  Future<void> _record() async {
+    final songId = _songId;
+    if (songId == null || _recorded) return;
+    // Guard against the timer firing right after a pause.
+    if (_listened.elapsed < _threshold) {
+      if (_playing) _schedule();
+      return;
+    }
+    _recorded = true;
     final db = await AppDatabase.instance.database;
     await db.rawInsert('''
       INSERT INTO play_stats(song_id, play_count, last_played_at)
@@ -43,7 +119,9 @@ class PlayTracker {
 
   void dispose() {
     _timer?.cancel();
-    _sub?.cancel();
+    _itemSub?.cancel();
+    _playingSub?.cancel();
+    _positionSub?.cancel();
   }
 }
 

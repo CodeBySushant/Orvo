@@ -26,6 +26,12 @@ final queueProvider = StreamProvider<List<MediaItem>>(
   (ref) => ref.watch(audioHandlerProvider).queue,
 );
 
+/// FIX (#6): user-visible playback error messages (corrupt / missing files).
+/// The app shell listens to this and shows a SnackBar.
+final playbackErrorProvider = StreamProvider<String>(
+  (ref) => ref.watch(audioHandlerProvider).errors,
+);
+
 final isPlayingProvider = Provider<bool>(
   (ref) => ref.watch(playbackStateProvider).valueOrNull?.playing ?? false,
 );

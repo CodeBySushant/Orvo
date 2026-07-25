@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:audio_service/audio_service.dart';
@@ -39,6 +40,17 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// True overlapping crossfade needs a dual-player architecture — deferred.
   bool fadeEnabled = false;
 
+  /// FIX (#6): user-visible playback error messages ("couldn't play X —
+  /// skipped"). The app shell listens and shows a SnackBar.
+  final StreamController<String> _errorController =
+      StreamController<String>.broadcast();
+  Stream<String> get errors => _errorController.stream;
+  int _consecutiveErrors = 0;
+
+  /// FIX (#7): whether playback should auto-resume when a transient
+  /// interruption (phone call, alarm) ends.
+  bool _resumeAfterInterruption = false;
+
   /// Needed by the equalizer platform channel (audiofx attaches per-session).
   int? get androidAudioSessionId => _player.androidAudioSessionId;
 
@@ -71,6 +83,35 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     // System playback state (notification buttons, seek bar, etc).
     _player.playbackEventStream.map(_transformEvent).pipe(playbackState);
 
+    // FIX (#6): a corrupt / missing file used to stop playback silently.
+    // Now: tell the user and auto-skip to the next track. A run of 3
+    // consecutive failures stops instead of looping through a dead queue.
+    _player.playbackEventStream.listen((event) {
+      if (_player.processingState == ProcessingState.ready) {
+        _consecutiveErrors = 0;
+      }
+    }, onError: (Object e, StackTrace st) async {
+      _consecutiveErrors++;
+      final failedTitle = _currentItem?.title;
+      _errorController.add(failedTitle == null
+          ? "Couldn't play this track — skipping."
+          : 'Couldn\'t play "$failedTitle" — skipping.');
+      if (_consecutiveErrors >= 3) {
+        _errorController.add('Several tracks failed to play — stopping.');
+        await _player.stop();
+        return;
+      }
+      final i = _player.currentIndex;
+      if (i != null && i + 1 < queue.value.length) {
+        try {
+          await _player.seek(Duration.zero, index: i + 1);
+          _player.play();
+        } catch (_) {}
+      } else {
+        await _player.stop();
+      }
+    });
+
     // Keep the notification's current item in sync with the player index.
     _player.currentIndexStream.listen((index) {
       final q = queue.value;
@@ -79,19 +120,40 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       }
     });
 
-    // Pause when headphones are unplugged.
-    session.becomingNoisyEventStream.listen((_) => pause());
+    // Pause when headphones are unplugged (never auto-resume from this).
+    session.becomingNoisyEventStream.listen((_) {
+      _resumeAfterInterruption = false;
+      pause();
+    });
 
-    // Duck / pause on interruptions (calls, navigation prompts).
+    // FIX (#7): duck / pause on interruptions (calls, navigation prompts),
+    // and auto-resume when a transient interruption ends — standard music
+    // player behaviour. Volume is only restored for duck-type events so it
+    // no longer races an in-flight fade after a pause-type interruption.
     session.interruptionEventStream.listen((event) {
       if (event.begin) {
-        if (event.type == AudioInterruptionType.duck) {
-          _player.setVolume(.3);
-        } else {
-          pause();
+        switch (event.type) {
+          case AudioInterruptionType.duck:
+            _player.setVolume(.3);
+          case AudioInterruptionType.pause:
+            _resumeAfterInterruption = _player.playing;
+            pause();
+          case AudioInterruptionType.unknown:
+            _resumeAfterInterruption = false;
+            pause();
         }
       } else {
-        _player.setVolume(1);
+        switch (event.type) {
+          case AudioInterruptionType.duck:
+            _player.setVolume(1);
+          case AudioInterruptionType.pause:
+            if (_resumeAfterInterruption) {
+              _resumeAfterInterruption = false;
+              play();
+            }
+          case AudioInterruptionType.unknown:
+            _resumeAfterInterruption = false;
+        }
       }
     });
   }
@@ -120,8 +182,10 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       );
       if (resume) await _player.play();
     } catch (_) {
-      // Corrupt / missing file at the target index — surface idle state
-      // rather than crashing.
+      // FIX (#6): corrupt / missing file at the target index — tell the
+      // user instead of failing silently.
+      _errorController.add("Couldn't start playback — the file may be "
+          'missing or corrupt.');
     }
   }
 

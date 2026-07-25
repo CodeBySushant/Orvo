@@ -6,6 +6,7 @@ import '../features/equalizer/equalizer_provider.dart';
 import '../features/player/widgets/mini_player.dart';
 import '../features/player/data/playback_persistence.dart';
 import '../features/player/providers/audio_settings.dart';
+import '../features/player/providers/player_providers.dart';
 import '../features/stats/play_stats.dart';
 import '../features/widget/widget_updater.dart';
 
@@ -42,6 +43,16 @@ class AppShell extends ConsumerWidget {
     // FIX (#5): restore the last playback session (paused, exact position)
     // and keep persisting it as it evolves.
     ref.watch(playbackPersistenceProvider);
+    // FIX (#6): surface playback errors (corrupt / missing files) that were
+    // previously swallowed silently.
+    ref.listen(playbackErrorProvider, (previous, next) {
+      final message = next.valueOrNull;
+      if (message != null) {
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(SnackBar(content: Text(message)));
+      }
+    });
 
     return Scaffold(
       body: child,

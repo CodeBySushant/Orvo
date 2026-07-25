@@ -18,10 +18,20 @@ class SleepTimerState {
 }
 
 /// Pauses playback when the countdown hits zero or the current track ends.
+///
+/// FIX (#9): "stop after current track" used to pause on ANY track change —
+/// including the user manually skipping to the next song, which is clearly
+/// not "the track ended". Now a track change only triggers the stop when the
+/// previous track actually played to (within 2s of) its end; a manual skip
+/// keeps the timer armed for the newly current track instead.
 class SleepTimerNotifier extends Notifier<SleepTimerState> {
   Timer? _ticker;
   StreamSubscription<MediaItem?>? _trackSub;
   StreamSubscription<PlaybackState>? _stateSub;
+  StreamSubscription<Duration>? _positionSub;
+
+  MediaItem? _armedTrack;
+  Duration _lastPosition = Duration.zero;
 
   @override
   SleepTimerState build() {
@@ -47,8 +57,27 @@ class SleepTimerNotifier extends Notifier<SleepTimerState> {
     _cleanup();
     state = const SleepTimerState(endOfTrack: true);
     final handler = ref.read(audioHandlerProvider);
-    // Track changed -> stop. skip(1) ignores the current value replay.
-    _trackSub = handler.mediaItem.skip(1).listen((_) => _finish());
+
+    _armedTrack = handler.mediaItem.valueOrNull;
+    _lastPosition = Duration.zero;
+
+    // Track how far into the armed track playback actually got.
+    _positionSub = AudioService.position.listen((p) => _lastPosition = p);
+
+    // Track changed: only a NATURAL end (played to within 2s of the track's
+    // duration) stops playback. A manual skip re-arms for the new track.
+    _trackSub = handler.mediaItem.skip(1).listen((item) {
+      final dur = _armedTrack?.duration;
+      final naturalEnd =
+          dur != null && _lastPosition >= dur - const Duration(seconds: 2);
+      if (naturalEnd) {
+        _finish();
+      } else {
+        _armedTrack = item;
+        _lastPosition = Duration.zero;
+      }
+    });
+
     // Queue ended (no next item emits) -> stop on completion.
     _stateSub = handler.playbackState.listen((s) {
       if (s.processingState == AudioProcessingState.completed) _finish();
@@ -72,6 +101,10 @@ class SleepTimerNotifier extends Notifier<SleepTimerState> {
     _trackSub = null;
     _stateSub?.cancel();
     _stateSub = null;
+    _positionSub?.cancel();
+    _positionSub = null;
+    _armedTrack = null;
+    _lastPosition = Duration.zero;
   }
 }
 
