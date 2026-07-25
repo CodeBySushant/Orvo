@@ -4,7 +4,8 @@ import 'package:flutter/services.dart';
 enum RingtoneResult { ok, needsPermission, failed }
 
 /// Platform channel for OS-level song actions: share, set as ringtone,
-/// and delete-from-device (scoped-storage delete request on Android 11+).
+/// delete-from-device (scoped-storage delete request on Android 11+), and
+/// the SAF lyrics-folder integration.
 abstract final class SystemChannel {
   static const _channel = MethodChannel('orvo/system');
 
@@ -47,6 +48,31 @@ abstract final class SystemChannel {
       return ok ?? false;
     } catch (_) {
       return false;
+    }
+  }
+
+  // --- FIX (#10): SAF lyrics folder --------------------------------------
+
+  /// Opens the system folder picker. Returns the granted tree URI, or null
+  /// if the user cancelled.
+  static Future<String?> pickLyricsFolder() async {
+    try {
+      return await _channel.invokeMethod<String>('pickLyricsFolder');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Reads "<baseName>.lrc" from the previously granted lyrics folder
+  /// (searched up to 3 levels deep). Returns the file contents or null.
+  static Future<String?> readLyrics(String treeUri, String baseName) async {
+    try {
+      return await _channel.invokeMethod<String>('readLyrics', {
+        'treeUri': treeUri,
+        'baseName': baseName,
+      });
+    } catch (_) {
+      return null;
     }
   }
 }

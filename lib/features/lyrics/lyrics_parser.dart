@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import '../system/system_channel.dart';
+
 /// One timestamped lyric line.
 class LyricLine {
   const LyricLine(this.time, this.text);
@@ -22,13 +24,15 @@ class Lyrics {
 }
 
 /// Loads lyrics for a track, in priority order:
-///  1. `.lrc` sidecar file next to the audio (may be blocked by scoped
-///     storage on Android 13+ — wrapped in try/catch)
-///  2. Embedded ID3v2 USLT frame in the audio file itself; if its text
+///  1. `.lrc` sidecar file next to the audio (works pre-Android 11 or for
+///     files Orvo owns; blocked by scoped storage otherwise)
+///  2. FIX (#10): `.lrc` matched by filename inside the user's chosen lyrics
+///     folder (SAF tree with a persisted read grant — works on Android 11+)
+///  3. Embedded ID3v2 USLT frame in the audio file itself; if its text
 ///     contains LRC timestamps it is treated as synced.
 abstract final class LyricsLoader {
-  static Future<Lyrics> load(String audioPath) async {
-    // 1. Sidecar .lrc
+  static Future<Lyrics> load(String audioPath, {String? safTreeUri}) async {
+    // 1. Sidecar .lrc via direct file access
     try {
       final lrcPath = audioPath.replaceAll(RegExp(r'\.[^.\\/]+$'), '.lrc');
       final lrcFile = File(lrcPath);
@@ -38,7 +42,20 @@ abstract final class LyricsLoader {
       }
     } catch (_) {/* scoped storage denial — fall through */}
 
-    // 2. Embedded USLT
+    // 2. Sidecar .lrc via the SAF lyrics folder
+    if (safTreeUri != null) {
+      try {
+        final fileName = audioPath.split('/').last;
+        final baseName = fileName.replaceAll(RegExp(r'\.[^.]+$'), '');
+        final text = await SystemChannel.readLyrics(safTreeUri, baseName);
+        if (text != null && text.trim().isNotEmpty) {
+          final parsed = parseLrc(text);
+          if (!parsed.isEmpty) return parsed;
+        }
+      } catch (_) {}
+    }
+
+    // 3. Embedded USLT
     try {
       final text = await _readUsltFrame(File(audioPath));
       if (text != null && text.trim().isNotEmpty) {

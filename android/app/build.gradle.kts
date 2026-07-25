@@ -34,6 +34,11 @@ android {
     }
 }
 
+dependencies {
+    // FIX (#10): DocumentFile for the SAF lyrics-folder reader.
+    implementation("androidx.documentfile:documentfile:1.0.1")
+}
+
 kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17

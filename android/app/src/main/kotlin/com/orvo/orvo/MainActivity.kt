@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import android.provider.Settings
+import androidx.documentfile.provider.DocumentFile
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -14,6 +15,11 @@ class MainActivity : AudioServiceActivity() {
 
     private var pendingDeleteResult: MethodChannel.Result? = null
     private val deleteRequestCode = 4821
+
+    // FIX (#10): SAF lyrics-folder picker (scoped storage blocks raw reads
+    // of .lrc files owned by other apps on Android 11+).
+    private var pendingFolderResult: MethodChannel.Result? = null
+    private val lyricsFolderRequestCode = 4822
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -109,6 +115,35 @@ class MainActivity : AudioServiceActivity() {
                             )
                             result.success(null)
                         }
+                        // FIX (#10): let the user pick a lyrics folder via
+                        // the system folder picker; Orvo keeps a persistable
+                        // read grant so .lrc files remain readable across
+                        // restarts, even under scoped storage.
+                        "pickLyricsFolder" -> {
+                            pendingFolderResult?.success(null)
+                            pendingFolderResult = result
+                            val intent =
+                                Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+                                    .addFlags(
+                                        Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                                            Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+                                    )
+                            startActivityForResult(
+                                intent, lyricsFolderRequestCode
+                            )
+                        }
+                        // Looks up "<baseName>.lrc" inside the granted tree
+                        // (up to 3 folders deep) and returns its contents.
+                        "readLyrics" -> {
+                            val treeUri =
+                                Uri.parse(call.argument<String>("treeUri")!!)
+                            val baseName =
+                                call.argument<String>("baseName")!!
+                            Thread {
+                                val text = readLyricsFromTree(treeUri, baseName)
+                                runOnUiThread { result.success(text) }
+                            }.start()
+                        }
                         "delete" -> {
                             val uri = Uri.parse(call.argument<String>("uri")!!)
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -164,6 +199,50 @@ class MainActivity : AudioServiceActivity() {
             pendingDeleteResult?.success(resultCode == RESULT_OK)
             pendingDeleteResult = null
         }
+        if (requestCode == lyricsFolderRequestCode) {
+            val uri = data?.data
+            if (resultCode == RESULT_OK && uri != null) {
+                try {
+                    contentResolver.takePersistableUriPermission(
+                        uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (_: Exception) {}
+                pendingFolderResult?.success(uri.toString())
+            } else {
+                pendingFolderResult?.success(null)
+            }
+            pendingFolderResult = null
+        }
+    }
+
+    private fun readLyricsFromTree(treeUri: Uri, baseName: String): String? =
+        try {
+            val root = DocumentFile.fromTreeUri(this, treeUri)
+            root?.let { findLrc(it, "$baseName.lrc", 0) }?.let { doc ->
+                contentResolver.openInputStream(doc.uri)
+                    ?.bufferedReader()
+                    ?.use { it.readText() }
+            }
+        } catch (e: Exception) {
+            null
+        }
+
+    private fun findLrc(
+        dir: DocumentFile,
+        fileName: String,
+        depth: Int
+    ): DocumentFile? {
+        if (depth > 3) return null
+        val children = dir.listFiles()
+        children
+            .firstOrNull { it.isFile && fileName.equals(it.name, ignoreCase = true) }
+            ?.let { return it }
+        for (child in children) {
+            if (child.isDirectory) {
+                findLrc(child, fileName, depth + 1)?.let { return it }
+            }
+        }
+        return null
     }
 
     // NOTE: no onDestroy() override anymore — releasing the effects here was

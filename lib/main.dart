@@ -20,7 +20,10 @@ Future<void> main() async {
       androidNotificationChannelName: 'Orvo playback',
       androidNotificationOngoing: true,
       androidStopForegroundOnPause: true,
-      androidNotificationIcon: 'mipmap/ic_launcher',
+      // FIX (#12): dedicated monochrome status-bar icon — the colored
+      // launcher mipmap rendered as a grey/white blob because Android
+      // draws the small icon as a pure-alpha silhouette.
+      androidNotificationIcon: 'drawable/ic_stat_orvo',
     ),
   );
 

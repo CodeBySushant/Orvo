@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/theme_provider.dart';
 import '../../core/widgets/artwork.dart';
 import '../library/providers/library_providers.dart';
+import '../lyrics/lyrics_provider.dart';
 import '../player/providers/audio_settings.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -85,6 +86,43 @@ class SettingsScreen extends ConsumerWidget {
               );
             },
           ),
+          // FIX (#10): scoped storage blocks reading .lrc files owned by
+          // other apps on Android 11+; a picked folder with a persisted SAF
+          // grant makes sidecar lyrics work again.
+          Consumer(builder: (context, ref, _) {
+            final folder = ref.watch(lyricsFolderProvider);
+            return ListTile(
+              leading: const Icon(Icons.lyrics_rounded),
+              title: const Text('Lyrics folder'),
+              subtitle: Text(
+                folder == null
+                    ? 'Pick the folder holding your .lrc files'
+                    : 'Connected — tap to change, long-press to remove',
+                style: theme.textTheme.labelMedium,
+              ),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () async {
+                final picked =
+                    await ref.read(lyricsFolderProvider.notifier).pick();
+                if (picked && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text(
+                            'Lyrics folder connected — .lrc files will now load')),
+                  );
+                }
+              },
+              onLongPress: folder == null
+                  ? null
+                  : () {
+                      ref.read(lyricsFolderProvider.notifier).clear();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text('Lyrics folder removed')),
+                      );
+                    },
+            );
+          }),
           const SizedBox(height: 24),
           _SectionLabel('About'),
           const ListTile(
