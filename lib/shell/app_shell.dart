@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../features/equalizer/equalizer_provider.dart';
 import '../features/player/widgets/mini_player.dart';
+import '../features/player/data/playback_persistence.dart';
 import '../features/player/providers/audio_settings.dart';
 import '../features/stats/play_stats.dart';
 import '../features/widget/widget_updater.dart';
@@ -38,6 +39,9 @@ class AppShell extends ConsumerWidget {
     // FIX (#2): apply persisted EQ settings as soon as playback starts,
     // instead of waiting for the user to open the equalizer screen.
     ref.watch(equalizerAutoAttachProvider);
+    // FIX (#5): restore the last playback session (paused, exact position)
+    // and keep persisting it as it evolves.
+    ref.watch(playbackPersistenceProvider);
 
     return Scaffold(
       body: child,

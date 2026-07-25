@@ -2,8 +2,9 @@ import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
 /// Single sqflite database for user data that can't live in the media store:
-/// playlists and play statistics. Song rows are referenced by media-store id
-/// only — the library itself stays in memory from on_audio_query.
+/// playlists, play statistics, and the persisted playback session. Song rows
+/// are referenced by media-store id only — the library itself stays in memory
+/// from on_audio_query.
 class AppDatabase {
   AppDatabase._();
   static final AppDatabase instance = AppDatabase._();
@@ -16,7 +17,7 @@ class AppDatabase {
     final path = p.join(await getDatabasesPath(), 'orvo.db');
     return openDatabase(
       path,
-      version: 1,
+      version: 2,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: (db, version) async {
         await db.execute('''
@@ -47,7 +48,22 @@ class AppDatabase {
             'CREATE INDEX idx_playlist_songs ON playlist_songs(playlist_id, position)');
         await db.execute(
             'CREATE INDEX idx_last_played ON play_stats(last_played_at DESC)');
+        await _createPlayerState(db);
+      },
+      // FIX (#5): v2 adds the persisted playback session.
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await _createPlayerState(db);
+        }
       },
     );
   }
+
+  static Future<void> _createPlayerState(Database db) => db.execute('''
+        CREATE TABLE IF NOT EXISTS player_state(
+          id INTEGER PRIMARY KEY CHECK(id = 1),
+          payload TEXT NOT NULL,
+          updated_at INTEGER NOT NULL
+        )
+      ''');
 }
