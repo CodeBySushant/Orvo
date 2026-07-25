@@ -2,6 +2,8 @@ package com.orvo.orvo
 
 import android.content.Intent
 import android.media.RingtoneManager
+import android.media.audiofx.BassBoost
+import android.media.audiofx.Equalizer
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
@@ -12,6 +14,9 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : AudioServiceActivity() {
 
+    private var equalizer: Equalizer? = null
+    private var bassBoost: BassBoost? = null
+
     private var pendingDeleteResult: MethodChannel.Result? = null
     private val deleteRequestCode = 4821
 
@@ -19,47 +24,71 @@ class MainActivity : AudioServiceActivity() {
         super.configureFlutterEngine(flutterEngine)
         registerSystemChannel(flutterEngine)
         registerWidgetChannel(flutterEngine)
-
-        // FIX (#1): the equalizer channel now delegates to the process-wide
-        // AudioEffects holder instead of Activity-owned fields, so the EQ
-        // survives the Activity being destroyed while playback continues in
-        // the background service. onDestroy() no longer releases effects.
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "orvo/equalizer")
             .setMethodCallHandler { call, result ->
                 try {
                     when (call.method) {
                         "init" -> {
                             val sessionId = call.argument<Int>("sessionId")!!
-                            result.success(AudioEffects.init(sessionId))
-                        }
-                        "setEnabled" -> {
-                            AudioEffects.setEnabled(
-                                call.argument<Boolean>("enabled")!!
-                            )
-                            result.success(null)
-                        }
-                        "setBandLevel" -> {
-                            AudioEffects.setBandLevel(
-                                call.argument<Int>("band")!!,
-                                call.argument<Int>("level")!!
-                            )
-                            result.success(null)
-                        }
-                        "usePreset" -> {
+                            releaseEffects()
+                            val eq = Equalizer(0, sessionId)
+                            equalizer = eq
+                            bassBoost = BassBoost(0, sessionId)
+                            val bands = (0 until eq.numberOfBands).map { i ->
+                                mapOf(
+                                    "index" to i,
+                                    // getCenterFreq returns milliHertz
+                                    "centerFreq" to eq.getCenterFreq(i.toShort()) / 1000,
+                                    "level" to eq.getBandLevel(i.toShort()).toInt()
+                                )
+                            }
+                            val presets = (0 until eq.numberOfPresets).map {
+                                eq.getPresetName(it.toShort())
+                            }
                             result.success(
-                                AudioEffects.usePreset(
-                                    call.argument<Int>("preset")!!
+                                mapOf(
+                                    "minLevel" to eq.bandLevelRange[0].toInt(),
+                                    "maxLevel" to eq.bandLevelRange[1].toInt(),
+                                    "bands" to bands,
+                                    "presets" to presets
                                 )
                             )
                         }
+                        "setEnabled" -> {
+                            val enabled = call.argument<Boolean>("enabled")!!
+                            equalizer?.enabled = enabled
+                            bassBoost?.enabled =
+                                enabled && (bassBoost?.roundedStrength ?: 0) > 0
+                            result.success(null)
+                        }
+                        "setBandLevel" -> {
+                            val band = call.argument<Int>("band")!!
+                            val level = call.argument<Int>("level")!!
+                            equalizer?.setBandLevel(band.toShort(), level.toShort())
+                            result.success(null)
+                        }
+                        "usePreset" -> {
+                            val preset = call.argument<Int>("preset")!!
+                            val eq = equalizer
+                            if (eq != null) {
+                                eq.usePreset(preset.toShort())
+                                val levels = (0 until eq.numberOfBands).map {
+                                    eq.getBandLevel(it.toShort()).toInt()
+                                }
+                                result.success(levels)
+                            } else {
+                                result.success(emptyList<Int>())
+                            }
+                        }
                         "setBassBoost" -> {
-                            AudioEffects.setBassBoost(
-                                call.argument<Int>("strength")!!
-                            )
+                            val strength = call.argument<Int>("strength")!!
+                            bassBoost?.setStrength(strength.toShort())
+                            bassBoost?.enabled =
+                                strength > 0 && (equalizer?.enabled ?: false)
                             result.success(null)
                         }
                         "release" -> {
-                            AudioEffects.release()
+                            releaseEffects()
                             result.success(null)
                         }
                         else -> result.notImplemented()
@@ -166,6 +195,15 @@ class MainActivity : AudioServiceActivity() {
         }
     }
 
-    // NOTE: no onDestroy() override anymore — releasing the effects here was
-    // bug #1 (EQ died when the UI closed while music kept playing).
+    private fun releaseEffects() {
+        equalizer?.release()
+        equalizer = null
+        bassBoost?.release()
+        bassBoost = null
+    }
+
+    override fun onDestroy() {
+        releaseEffects()
+        super.onDestroy()
+    }
 }

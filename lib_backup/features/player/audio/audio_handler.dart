@@ -25,12 +25,6 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Needed by the equalizer platform channel (audiofx attaches per-session).
   int? get androidAudioSessionId => _player.androidAudioSessionId;
 
-  /// FIX (#2): emits whenever the platform allocates / changes the audio
-  /// session, so the equalizer can auto-attach as soon as playback exists
-  /// instead of waiting for the user to open the EQ screen.
-  Stream<int?> get androidAudioSessionIdStream =>
-      _player.androidAudioSessionIdStream;
-
   Future<void> _fadeVolume(double from, double to, Duration duration) async {
     const steps = 8;
     final stepMs = duration.inMilliseconds ~/ steps;

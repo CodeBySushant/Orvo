@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../features/equalizer/equalizer_provider.dart';
 import '../features/player/widgets/mini_player.dart';
 import '../features/player/providers/audio_settings.dart';
 import '../features/stats/play_stats.dart';
@@ -35,9 +34,6 @@ class AppShell extends ConsumerWidget {
     ref.watch(smoothTransitionsProvider);
     // Keep the home-screen widget in sync with playback.
     ref.watch(widgetUpdaterProvider);
-    // FIX (#2): apply persisted EQ settings as soon as playback starts,
-    // instead of waiting for the user to open the equalizer screen.
-    ref.watch(equalizerAutoAttachProvider);
 
     return Scaffold(
       body: child,

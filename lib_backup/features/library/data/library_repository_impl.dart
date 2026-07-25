@@ -8,10 +8,12 @@ import '../domain/library_repository.dart';
 /// Media-store backed implementation. on_audio_query already runs its queries
 /// on the platform side, off the UI thread, so scanning never blocks frames.
 ///
-/// FIX (#3): only READ_MEDIA_AUDIO is required. Photo access (album art) is
-/// optional — denying it must never produce an empty library. All queries
-/// stay wrapped in try/catch so a plugin-side permission complaint degrades
-/// to an empty result instead of crashing.
+/// Permission NOTE: the plugin's native check on Android 13+ requires BOTH
+/// READ_MEDIA_AUDIO and READ_MEDIA_IMAGES, and calling any query without them
+/// triggers a double-reply crash inside the plugin. So this class verifies
+/// (never requests) via permission_handler before every query. The
+/// PermissionGate owns requesting; this defensive check exists because
+/// Android Auto enters through here directly.
 class LibraryRepositoryImpl implements LibraryRepository {
   LibraryRepositoryImpl(this._query);
 
@@ -22,24 +24,20 @@ class LibraryRepositoryImpl implements LibraryRepository {
 
   Future<bool> _hasPermission() async {
     try {
+      // Android 13+: audio -> READ_MEDIA_AUDIO, photos -> READ_MEDIA_IMAGES.
+      // Android <=12: permission_handler maps both to READ_EXTERNAL_STORAGE.
       final audio = await Permission.audio.status;
-      if (!audio.isGranted) {
-        debugPrint('[Orvo] repo status: audio=$audio');
+      final photos = await Permission.photos.status;
+      final ok = audio.isGranted && photos.isGranted;
+      if (!ok) {
+        debugPrint('[Orvo] repo status: audio=$audio photos=$photos');
       }
-      return audio.isGranted;
+      return ok;
     } catch (e) {
       debugPrint('[Orvo] repo permission ERROR: $e');
       return false;
     }
   }
-
-  /// FIX (#11): one shared music filter for every song query, so voice notes
-  /// / short clips excluded from the Songs tab can't reappear inside album
-  /// or artist detail screens.
-  bool _isRealMusic(SongModel m) =>
-      (m.isMusic ?? true) &&
-      m.uri != null &&
-      (m.duration ?? 0) > _minDuration.inMilliseconds;
 
   @override
   Future<List<Song>> songs() async {
@@ -52,8 +50,13 @@ class LibraryRepositoryImpl implements LibraryRepository {
         ignoreCase: true,
       );
       debugPrint('[Orvo] querySongs raw=${models.length}');
-      final filtered =
-          models.where(_isRealMusic).map(_toSong).toList(growable: false);
+      final filtered = models
+          .where((m) =>
+              (m.isMusic ?? true) &&
+              m.uri != null &&
+              (m.duration ?? 0) > _minDuration.inMilliseconds)
+          .map(_toSong)
+          .toList(growable: false);
       debugPrint('[Orvo] after filter=${filtered.length}');
       return filtered;
     } catch (e) {
@@ -111,37 +114,27 @@ class LibraryRepositoryImpl implements LibraryRepository {
   @override
   Future<List<Song>> albumSongs(int albumId) async {
     if (!await _hasPermission()) return const [];
-    try {
-      final models = await _query.queryAudiosFrom(
-        AudiosFromType.ALBUM_ID,
-        albumId,
-        sortType: SongSortType.TITLE,
-        orderType: OrderType.ASC_OR_SMALLER,
-      );
-      final songs = models.where(_isRealMusic).map(_toSong).toList();
-      songs.sort((a, b) => (a.track ?? 1 << 20).compareTo(b.track ?? 1 << 20));
-      return songs;
-    } catch (e) {
-      debugPrint('[Orvo] albumSongs ERROR: $e');
-      return const [];
-    }
+    final models = await _query.queryAudiosFrom(
+      AudiosFromType.ALBUM_ID,
+      albumId,
+      sortType: SongSortType.TITLE,
+      orderType: OrderType.ASC_OR_SMALLER,
+    );
+    final songs = models.where((m) => m.uri != null).map(_toSong).toList();
+    songs.sort((a, b) => (a.track ?? 1 << 20).compareTo(b.track ?? 1 << 20));
+    return songs;
   }
 
   @override
   Future<List<Song>> artistSongs(int artistId) async {
     if (!await _hasPermission()) return const [];
-    try {
-      final models = await _query.queryAudiosFrom(
-        AudiosFromType.ARTIST_ID,
-        artistId,
-        sortType: SongSortType.TITLE,
-        orderType: OrderType.ASC_OR_SMALLER,
-      );
-      return models.where(_isRealMusic).map(_toSong).toList();
-    } catch (e) {
-      debugPrint('[Orvo] artistSongs ERROR: $e');
-      return const [];
-    }
+    final models = await _query.queryAudiosFrom(
+      AudiosFromType.ARTIST_ID,
+      artistId,
+      sortType: SongSortType.TITLE,
+      orderType: OrderType.ASC_OR_SMALLER,
+    );
+    return models.where((m) => m.uri != null).map(_toSong).toList();
   }
 
   Song _toSong(SongModel m) => Song(

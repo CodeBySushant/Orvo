@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -140,39 +139,3 @@ class EqualizerNotifier extends Notifier<EqualizerState> {
 
 final equalizerProvider =
     NotifierProvider<EqualizerNotifier, EqualizerState>(EqualizerNotifier.new);
-
-/// FIX (#2): auto-applies the persisted EQ settings as soon as the platform
-/// allocates an audio session (first playback), and re-applies them whenever
-/// the session id changes. Previously the saved EQ was only applied after the
-/// user manually opened the equalizer screen — on cold start, music played
-/// un-EQ'd even with the equalizer enabled in settings.
-///
-/// Kept alive for the whole app session by app_shell (like the play tracker
-/// and widget updater).
-final equalizerAutoAttachProvider = Provider<void>((ref) {
-  if (!Platform.isAndroid) return;
-
-  final handler = ref.watch(audioHandlerProvider);
-  final prefs = ref.read(sharedPreferencesProvider);
-
-  int? lastAttachedSession;
-  StreamSubscription<int?>? sub;
-
-  sub = handler.androidAudioSessionIdStream.listen((sessionId) {
-    if (sessionId == null || sessionId == 0) return;
-    if (sessionId == lastAttachedSession) return;
-
-    // Only bother attaching automatically when the user has actually
-    // configured something (enabled, custom levels, or bass boost) —
-    // otherwise the first EQ screen visit will attach on demand.
-    final hasSavedConfig = (prefs.getBool(_kEnabledKey) ?? false) ||
-        prefs.getStringList(_kLevelsKey) != null ||
-        (prefs.getInt(_kBassKey) ?? 0) > 0;
-    if (!hasSavedConfig) return;
-
-    lastAttachedSession = sessionId;
-    ref.read(equalizerProvider.notifier).attach();
-  });
-
-  ref.onDispose(() => sub?.cancel());
-});
