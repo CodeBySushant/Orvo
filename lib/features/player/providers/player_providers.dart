@@ -104,20 +104,27 @@ class PlayerController {
   final OrvoAudioHandler _handler;
 
   Future<void> playFrom(List<Song> songs, int index) async {
-    await _handler.setShuffleMode(AudioServiceShuffleMode.none);
+    // FIX (#17): tapping a song no longer silently resets the user's
+    // shuffle preference — if shuffle was on, the new queue is shuffled
+    // around the chosen song.
+    final keepShuffle = _handler.shuffleEnabled;
     await _handler.loadQueue(
       songs.map(toMediaItem).toList(growable: false),
       startIndex: index,
     );
+    if (keepShuffle) {
+      await _handler.setShuffleMode(AudioServiceShuffleMode.all);
+    }
   }
 
   Future<void> shuffleAll(List<Song> songs) async {
     if (songs.isEmpty) return;
     final shuffled = List<Song>.from(songs)..shuffle(Random());
-    await _handler.setShuffleMode(AudioServiceShuffleMode.none);
     await _handler.loadQueue(
       shuffled.map(toMediaItem).toList(growable: false),
     );
+    // Light up the shuffle toggle so "Shuffle all" reads as shuffle mode.
+    await _handler.setShuffleMode(AudioServiceShuffleMode.all);
   }
 
   Future<void> playNext(Song song) =>

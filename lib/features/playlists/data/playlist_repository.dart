@@ -16,6 +16,10 @@ class Playlist {
   final int songCount;
 }
 
+/// FIX (#15): the schema now uses a surrogate key, so the same song can be
+/// added to a playlist more than once, [addSongs] reports how many rows were
+/// added (no more silent drops), and reorder/remove operate on row ids so
+/// duplicates behave correctly.
 class PlaylistRepository {
   Future<Database> get _db => AppDatabase.instance.database;
 
@@ -58,7 +62,7 @@ class PlaylistRepository {
     await db.delete('playlists', where: 'id = ?', whereArgs: [id]);
   }
 
-  /// Ordered song ids for a playlist.
+  /// Ordered song ids for a playlist (duplicates preserved).
   Future<List<int>> songIds(int playlistId) async {
     final db = await _db;
     final rows = await db.query(
@@ -71,8 +75,10 @@ class PlaylistRepository {
     return rows.map((r) => r['song_id'] as int).toList(growable: false);
   }
 
-  Future<void> addSongs(int playlistId, List<int> songIds) async {
-    if (songIds.isEmpty) return;
+  /// Appends [songIds] to the playlist. Returns how many were added so the
+  /// UI can confirm ("Added 3 songs").
+  Future<int> addSongs(int playlistId, List<int> songIds) async {
+    if (songIds.isEmpty) return 0;
     final db = await _db;
     final maxRow = await db.rawQuery(
       'SELECT COALESCE(MAX(position), -1) AS max_pos FROM playlist_songs WHERE playlist_id = ?',
@@ -82,38 +88,49 @@ class PlaylistRepository {
     final now = DateTime.now().millisecondsSinceEpoch;
     final batch = db.batch();
     for (final songId in songIds) {
-      batch.insert(
-        'playlist_songs',
-        {
-          'playlist_id': playlistId,
-          'song_id': songId,
-          'position': position++,
-          'added_at': now,
-        },
-        conflictAlgorithm: ConflictAlgorithm.ignore,
-      );
+      batch.insert('playlist_songs', {
+        'playlist_id': playlistId,
+        'song_id': songId,
+        'position': position++,
+        'added_at': now,
+      });
     }
     await batch.commit(noResult: true);
+    return songIds.length;
   }
 
+  /// Removes ONE occurrence of [songId] (the earliest by position), so a
+  /// duplicated song doesn't vanish everywhere at once.
   Future<void> removeSong(int playlistId, int songId) async {
     final db = await _db;
-    await db.delete('playlist_songs',
-        where: 'playlist_id = ? AND song_id = ?',
-        whereArgs: [playlistId, songId]);
+    await db.rawDelete('''
+      DELETE FROM playlist_songs WHERE id = (
+        SELECT id FROM playlist_songs
+        WHERE playlist_id = ? AND song_id = ?
+        ORDER BY position ASC
+        LIMIT 1
+      )
+    ''', [playlistId, songId]);
   }
 
+  /// Reorders by row id so duplicate songs move independently.
   Future<void> reorder(int playlistId, int oldIndex, int newIndex) async {
-    final ids = List<int>.from(await songIds(playlistId));
-    if (oldIndex < 0 || oldIndex >= ids.length) return;
-    final moved = ids.removeAt(oldIndex);
-    ids.insert(newIndex.clamp(0, ids.length), moved);
     final db = await _db;
+    final rows = await db.query(
+      'playlist_songs',
+      columns: ['id'],
+      where: 'playlist_id = ?',
+      whereArgs: [playlistId],
+      orderBy: 'position ASC',
+    );
+    final rowIds = rows.map((r) => r['id'] as int).toList();
+    if (oldIndex < 0 || oldIndex >= rowIds.length) return;
+    final moved = rowIds.removeAt(oldIndex);
+    rowIds.insert(newIndex.clamp(0, rowIds.length), moved);
     final batch = db.batch();
-    for (var i = 0; i < ids.length; i++) {
+    for (var i = 0; i < rowIds.length; i++) {
       batch.update('playlist_songs', {'position': i},
-          where: 'playlist_id = ? AND song_id = ?',
-          whereArgs: [playlistId, ids[i]]);
+          where: 'id = ?', whereArgs: [rowIds[i]]);
     }
     await batch.commit(noResult: true);
   }

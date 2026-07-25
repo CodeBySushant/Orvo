@@ -19,9 +19,22 @@ class FavoritesNotifier extends Notifier<Set<int>> {
     final next = Set<int>.from(state);
     next.contains(songId) ? next.remove(songId) : next.add(songId);
     state = next;
+    _persist(next);
+  }
+
+  /// FIX (#16): drops favorite ids that no longer exist in the library
+  /// (deleted / moved files). Called after each successful scan.
+  void retainOnly(Set<int> validIds) {
+    if (state.every(validIds.contains)) return;
+    final next = state.where(validIds.contains).toSet();
+    state = next;
+    _persist(next);
+  }
+
+  void _persist(Set<int> ids) {
     ref.read(sharedPreferencesProvider).setStringList(
           _kFavoritesKey,
-          next.map((id) => id.toString()).toList(growable: false),
+          ids.map((id) => id.toString()).toList(growable: false),
         );
   }
 

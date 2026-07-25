@@ -67,10 +67,16 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   List<MediaItem>? get unshuffledQueue =>
       _unshuffledQueue == null ? null : List.unmodifiable(_unshuffledQueue!);
 
+  /// FIX (#17): generation token — bumping it cancels any in-flight fade so
+  /// rapid play/pause/skip taps can't race the volume ramp.
+  int _fadeToken = 0;
+
   Future<void> _fadeVolume(double from, double to, Duration duration) async {
+    final token = ++_fadeToken;
     const steps = 8;
     final stepMs = duration.inMilliseconds ~/ steps;
     for (var i = 1; i <= steps; i++) {
+      if (token != _fadeToken) return; // superseded by a newer transport op
       await _player.setVolume(from + (to - from) * i / steps);
       await Future.delayed(Duration(milliseconds: stepMs));
     }
@@ -362,8 +368,18 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   @override
   Future<void> skipToQueueItem(int index) async {
     if (index < 0 || index >= queue.value.length) return;
-    await _player.seek(Duration.zero, index: index);
-    _player.play();
+    // FIX (#17): respect the smooth-transitions setting here too.
+    if (fadeEnabled && _player.playing) {
+      await _fadeVolume(_player.volume, 0, const Duration(milliseconds: 160));
+      await _player.seek(Duration.zero, index: index);
+      await _player.setVolume(1);
+      await _player.play();
+    } else {
+      _fadeToken++; // cancel any in-flight fade
+      await _player.setVolume(1);
+      await _player.seek(Duration.zero, index: index);
+      await _player.play();
+    }
   }
 
   @override
@@ -467,7 +483,26 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   // Auto (and Bluetooth browsers) call getChildren to build their UI.
 
   final LibraryRepository _autoLibrary = LibraryRepositoryImpl(OnAudioQuery());
-  final Map<String, List<Song>> _autoLists = {};
+
+  /// FIX (#14): browse-cache entries now expire (5 min TTL) so playing from
+  /// Android Auto can't use a list that's stale after a rescan or delete.
+  final Map<String, (int, List<Song>)> _autoLists = {};
+  static const _autoCacheTtl = Duration(minutes: 5);
+
+  void _cacheAutoList(String key, List<Song> songs) {
+    _autoLists[key] = (DateTime.now().millisecondsSinceEpoch, songs);
+  }
+
+  List<Song>? _freshAutoList(String key) {
+    final entry = _autoLists[key];
+    if (entry == null) return null;
+    final age = DateTime.now().millisecondsSinceEpoch - entry.$1;
+    if (age > _autoCacheTtl.inMilliseconds) {
+      _autoLists.remove(key);
+      return null;
+    }
+    return entry.$2;
+  }
 
   static const _idRecent = 'orvo-recent';
   static const _idSongs = 'orvo-songs';
@@ -507,19 +542,21 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       if (parentMediaId == _idRecent) {
         final songs =
             (await _autoLibrary.songs()).take(50).toList(growable: false);
-        _autoLists[parentMediaId] = songs;
+        _cacheAutoList(parentMediaId, songs);
         return songs.map(_songToItem).toList(growable: false);
       }
       if (parentMediaId == _idSongs) {
+        // FIX (#14): raised cap (was 300).
         final songs =
-            (await _autoLibrary.songs()).take(300).toList(growable: false);
-        _autoLists[parentMediaId] = songs;
+            (await _autoLibrary.songs()).take(500).toList(growable: false);
+        _cacheAutoList(parentMediaId, songs);
         return songs.map(_songToItem).toList(growable: false);
       }
       if (parentMediaId == _idAlbums) {
         final albums = await _autoLibrary.albums();
         return [
-          for (final album in albums.take(100))
+          // FIX (#14): raised cap (was 100).
+          for (final album in albums.take(200))
             MediaItem(
               id: '$_idAlbumPrefix${album.id}',
               title: album.title,
@@ -535,7 +572,7 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
             int.tryParse(parentMediaId.substring(_idAlbumPrefix.length));
         if (albumId == null) return const [];
         final songs = await _autoLibrary.albumSongs(albumId);
-        _autoLists[parentMediaId] = songs;
+        _cacheAutoList(parentMediaId, songs);
         return songs.map(_songToItem).toList(growable: false);
       }
     } catch (_) {}
@@ -546,8 +583,11 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> playFromMediaId(String mediaId,
       [Map<String, dynamic>? extras]) async {
     // Prefer the list the item was browsed from so next/previous stay
-    // within that context.
-    for (final list in _autoLists.values) {
+    // within that context — but only if the cached list is still fresh
+    // (FIX #14: stale entries are skipped and later evicted).
+    for (final key in List<String>.from(_autoLists.keys)) {
+      final list = _freshAutoList(key);
+      if (list == null) continue;
       final index = list.indexWhere((s) => s.uri == mediaId);
       if (index != -1) {
         await loadQueue(list.map(_songToItem).toList(growable: false),

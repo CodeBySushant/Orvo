@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- FIX (#18): adaptive icon background — Orvo brand accent. -->
+    <color name="ic_launcher_background">#23151A</color>
+</resources>

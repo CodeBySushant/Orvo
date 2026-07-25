@@ -6,7 +6,8 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.view.KeyEvent
 import android.widget.RemoteViews
 import com.ryanheise.audioservice.MediaButtonReceiver
@@ -14,6 +15,11 @@ import com.ryanheise.audioservice.MediaButtonReceiver
 /// 4x1 now-playing widget. Transport buttons broadcast media-key events to
 /// audio_service's MediaButtonReceiver, so they control playback even when
 /// the UI isn't open (the playback foreground service handles them).
+///
+/// FIX (#13): album art now arrives as raw bytes from the Flutter side and
+/// is rendered with setImageViewBitmap. The previous content://.../albumart
+/// URI approach failed on most launchers, which lack permission to read
+/// media-store album art — art rendered blank.
 class OrvoWidgetProvider : AppWidgetProvider() {
 
     override fun onUpdate(
@@ -22,7 +28,9 @@ class OrvoWidgetProvider : AppWidgetProvider() {
         appWidgetIds: IntArray
     ) {
         for (id in appWidgetIds) {
-            appWidgetManager.updateAppWidget(id, buildViews(context, null, null, false, -1L))
+            appWidgetManager.updateAppWidget(
+                id, buildViews(context, null, null, false, null)
+            )
         }
     }
 
@@ -32,14 +40,14 @@ class OrvoWidgetProvider : AppWidgetProvider() {
             title: String,
             artist: String,
             playing: Boolean,
-            albumId: Long
+            art: ByteArray?
         ) {
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(
                 ComponentName(context, OrvoWidgetProvider::class.java)
             )
             if (ids.isEmpty()) return
-            val views = buildViews(context, title, artist, playing, albumId)
+            val views = buildViews(context, title, artist, playing, art)
             for (id in ids) manager.updateAppWidget(id, views)
         }
 
@@ -48,7 +56,7 @@ class OrvoWidgetProvider : AppWidgetProvider() {
             title: String?,
             artist: String?,
             playing: Boolean,
-            albumId: Long
+            art: ByteArray?
         ): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.orvo_widget)
             views.setTextViewText(R.id.widget_title, title ?: "Orvo")
@@ -58,11 +66,16 @@ class OrvoWidgetProvider : AppWidgetProvider() {
                 if (playing) android.R.drawable.ic_media_pause
                 else android.R.drawable.ic_media_play
             )
-            if (albumId > 0) {
-                views.setImageViewUri(
-                    R.id.widget_art,
-                    Uri.parse("content://media/external/audio/albumart/$albumId")
-                )
+
+            val bitmap: Bitmap? = art?.let {
+                try {
+                    BitmapFactory.decodeByteArray(it, 0, it.size)
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            if (bitmap != null) {
+                views.setImageViewBitmap(R.id.widget_art, bitmap)
             } else {
                 views.setImageViewResource(R.id.widget_art, R.mipmap.ic_launcher)
             }

@@ -180,7 +180,8 @@ class MainActivity : AudioServiceActivity() {
                             call.argument<String>("title") ?: "Orvo",
                             call.argument<String>("artist") ?: "",
                             call.argument<Boolean>("playing") ?: false,
-                            (call.argument<Number>("albumId") ?: -1).toLong()
+                            // FIX (#13): art comes as raw bytes now.
+                            call.argument<ByteArray>("art")
                         )
                         result.success(null)
                     } else {
