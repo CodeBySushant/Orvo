@@ -1,21 +1,80 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/formatters.dart';
+import '../../library/domain/entities.dart';
 import '../../library/widgets/song_tile.dart';
 import '../data/playlist_repository.dart';
 import '../../player/providers/player_providers.dart';
 import '../providers/playlist_providers.dart';
 import '../widgets/add_to_playlist_sheet.dart' show promptPlaylistName;
 
-class PlaylistDetailScreen extends ConsumerWidget {
+/// FEATURE (#8): the playlist can now be filtered in place with the search
+/// icon in the app bar. While a filter is active the list is a plain,
+/// read-only view (no reorder / swipe-remove — those only make sense on the
+/// full list).
+///
+/// Also fixes a latent issue from the duplicate-songs change (#15): list row
+/// keys were based on song id alone, which produced duplicate keys — and a
+/// crash — the moment the same song appeared twice. Keys now include an
+/// occurrence counter.
+class PlaylistDetailScreen extends ConsumerStatefulWidget {
   const PlaylistDetailScreen({super.key, required this.playlistId});
 
   final int playlistId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PlaylistDetailScreen> createState() =>
+      _PlaylistDetailScreenState();
+}
+
+class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
+  final _searchController = TextEditingController();
+  Timer? _debounce;
+  bool _searching = false;
+  String _filter = '';
+
+  int get playlistId => widget.playlistId;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onFilterChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 200), () {
+      if (mounted) setState(() => _filter = value.trim().toLowerCase());
+    });
+  }
+
+  void _toggleSearch() {
+    setState(() {
+      _searching = !_searching;
+      if (!_searching) {
+        _searchController.clear();
+        _filter = '';
+      }
+    });
+  }
+
+  /// Unique, duplicate-safe keys: same song twice gets occurrence-numbered
+  /// keys instead of colliding.
+  List<Key> _rowKeys(List<Song> songs) {
+    final seen = <int, int>{};
+    return [
+      for (final s in songs)
+        ValueKey('pl-$playlistId-${s.id}-${seen[s.id] = (seen[s.id] ?? 0) + 1}'),
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final songsAsync = ref.watch(playlistSongsProvider(playlistId));
     final playlists = ref.watch(playlistsProvider).valueOrNull ?? const [];
@@ -30,8 +89,24 @@ class PlaylistDetailScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(playlist?.name ?? 'Playlist'),
+        title: _searching
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                onChanged: _onFilterChanged,
+                decoration: const InputDecoration(
+                  hintText: 'Search in playlist',
+                  border: InputBorder.none,
+                ),
+              )
+            : Text(playlist?.name ?? 'Playlist'),
         actions: [
+          IconButton(
+            icon: Icon(
+                _searching ? Icons.close_rounded : Icons.search_rounded),
+            tooltip: _searching ? 'Close search' : 'Search in playlist',
+            onPressed: _toggleSearch,
+          ),
           PopupMenuButton<String>(
             onSelected: (value) async {
               switch (value) {
@@ -90,8 +165,37 @@ class PlaylistDetailScreen extends ConsumerWidget {
               ),
             );
           }
+
+          // FEATURE (#8): filtered read-only view while searching.
+          if (_filter.isNotEmpty) {
+            final hits = [
+              for (final s in songs)
+                if (s.title.toLowerCase().contains(_filter) ||
+                    s.artist.toLowerCase().contains(_filter) ||
+                    s.album.toLowerCase().contains(_filter))
+                  s,
+            ];
+            if (hits.isEmpty) {
+              return Center(
+                child: Text('No matches in this playlist',
+                    style: theme.textTheme.bodySmall),
+              );
+            }
+            return ListView.builder(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.only(top: 8, bottom: 24),
+              itemCount: hits.length,
+              itemBuilder: (context, i) => SongTile(
+                song: hits[i],
+                contextSongs: hits,
+                index: i,
+              ),
+            );
+          }
+
           final total = songs.fold<Duration>(
               Duration.zero, (sum, s) => sum + s.duration);
+          final keys = _rowKeys(songs);
           return Column(
             children: [
               Padding(
@@ -132,7 +236,7 @@ class PlaylistDetailScreen extends ConsumerWidget {
                     actions.reorder(playlistId, oldIndex, newIndex);
                   },
                   itemBuilder: (context, i) => Dismissible(
-                    key: ValueKey('pl-$playlistId-${songs[i].id}'),
+                    key: keys[i],
                     direction: DismissDirection.endToStart,
                     background: Container(
                       alignment: Alignment.centerRight,

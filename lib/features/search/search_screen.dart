@@ -7,11 +7,17 @@ import 'package:on_audio_query_pluse/on_audio_query.dart' show ArtworkType;
 
 import '../../core/widgets/artwork.dart';
 import '../library/domain/entities.dart';
+import '../library/providers/folder_providers.dart';
 import '../library/providers/library_providers.dart';
 import '../library/widgets/song_tile.dart';
+import '../playlists/data/playlist_repository.dart';
+import '../playlists/providers/playlist_providers.dart';
 
 /// In-memory search across the whole library — instant even on huge
 /// libraries since everything is already loaded.
+///
+/// FEATURE (#8): search now also covers playlists and folders, so the
+/// search bar is a true single entry point into everything in the app.
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
 
@@ -45,6 +51,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final albums = ref.watch(albumsProvider).valueOrNull ?? const <Album>[];
     final artists =
         ref.watch(artistsProvider).valueOrNull ?? const <Artist>[];
+    final playlists =
+        ref.watch(playlistsProvider).valueOrNull ?? const <Playlist>[];
+    final folders =
+        ref.watch(foldersProvider).valueOrNull ?? const <MusicFolder>[];
 
     final q = _query;
     final songHits = q.isEmpty
@@ -70,9 +80,27 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             .where((a) => a.name.toLowerCase().contains(q))
             .take(10)
             .toList(growable: false);
+    final playlistHits = q.isEmpty
+        ? const <Playlist>[]
+        : playlists
+            .where((p) => p.name.toLowerCase().contains(q))
+            .take(10)
+            .toList(growable: false);
+    final folderHits = q.isEmpty
+        ? const <MusicFolder>[]
+        : folders
+            .where((f) =>
+                f.name.toLowerCase().contains(q) ||
+                f.path.toLowerCase().contains(q))
+            .take(10)
+            .toList(growable: false);
 
-    final empty =
-        q.isNotEmpty && songHits.isEmpty && albumHits.isEmpty && artistHits.isEmpty;
+    final empty = q.isNotEmpty &&
+        songHits.isEmpty &&
+        albumHits.isEmpty &&
+        artistHits.isEmpty &&
+        playlistHits.isEmpty &&
+        folderHits.isEmpty;
 
     return Scaffold(
       appBar: AppBar(
@@ -83,7 +111,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           onChanged: _onChanged,
           textInputAction: TextInputAction.search,
           decoration: InputDecoration(
-            hintText: 'Search songs, albums, artists',
+            hintText: 'Search your library',
             border: InputBorder.none,
             suffixIcon: _controller.text.isEmpty
                 ? null
@@ -99,7 +127,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       ),
       body: q.isEmpty
           ? Center(
-              child: Text('Type to search your library',
+              child: Text('Search songs, albums, artists,\nplaylists and folders',
+                  textAlign: TextAlign.center,
                   style: theme.textTheme.bodySmall),
             )
           : empty
@@ -161,6 +190,57 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                           title: Text(artist.name,
                               maxLines: 1, overflow: TextOverflow.ellipsis),
                           subtitle: Text('${artist.trackCount} songs',
+                              style: theme.textTheme.labelMedium),
+                        ),
+                    ],
+                    // FEATURE (#8): playlists in global search.
+                    if (playlistHits.isNotEmpty) ...[
+                      _Header('Playlists'),
+                      for (final playlist in playlistHits)
+                        ListTile(
+                          onTap: () =>
+                              context.go('/playlist/${playlist.id}'),
+                          leading: Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary
+                                  .withOpacity(.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(Icons.queue_music_rounded,
+                                color: theme.colorScheme.primary),
+                          ),
+                          title: Text(playlist.name,
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                          subtitle: Text('${playlist.songCount} songs',
+                              style: theme.textTheme.labelMedium),
+                        ),
+                    ],
+                    // FEATURE (#8): folders in global search.
+                    if (folderHits.isNotEmpty) ...[
+                      _Header('Folders'),
+                      for (final folder in folderHits)
+                        ListTile(
+                          onTap: () => context.go(
+                              '/folder?path=${Uri.encodeComponent(folder.path)}'),
+                          leading: Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary
+                                  .withOpacity(.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(Icons.folder_rounded,
+                                color: theme.colorScheme.primary),
+                          ),
+                          title: Text(folder.name,
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                          subtitle: Text(
+                              '${folder.songCount} songs · ${folder.path}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.labelMedium),
                         ),
                     ],

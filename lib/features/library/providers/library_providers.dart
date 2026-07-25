@@ -87,3 +87,77 @@ final sortedSongsProvider = Provider<AsyncValue<List<Song>>>((ref) {
     return list;
   });
 });
+
+// FEATURE (#9): Albums and Artists tabs get sort options too — previously
+// only the Songs tab could be sorted.
+
+enum AlbumSort {
+  title('Title'),
+  artist('Artist'),
+  songCount('Song count');
+
+  const AlbumSort(this.label);
+  final String label;
+}
+
+final albumSortProvider = StateProvider<AlbumSort>((_) => AlbumSort.title);
+
+final sortedAlbumsProvider = Provider<AsyncValue<List<Album>>>((ref) {
+  final sort = ref.watch(albumSortProvider);
+  return ref.watch(albumsProvider).whenData((albums) {
+    final list = List<Album>.from(albums); // source is title asc
+    switch (sort) {
+      case AlbumSort.title:
+        break;
+      case AlbumSort.artist:
+        list.sort((a, b) {
+          final byArtist =
+              a.artist.toLowerCase().compareTo(b.artist.toLowerCase());
+          if (byArtist != 0) return byArtist;
+          return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+        });
+      case AlbumSort.songCount:
+        list.sort((a, b) {
+          final byCount = b.songCount.compareTo(a.songCount);
+          if (byCount != 0) return byCount;
+          return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+        });
+    }
+    return list;
+  });
+});
+
+enum ArtistSort {
+  name('Name'),
+  trackCount('Song count'),
+  albumCount('Album count');
+
+  const ArtistSort(this.label);
+  final String label;
+}
+
+final artistSortProvider = StateProvider<ArtistSort>((_) => ArtistSort.name);
+
+final sortedArtistsProvider = Provider<AsyncValue<List<Artist>>>((ref) {
+  final sort = ref.watch(artistSortProvider);
+  return ref.watch(artistsProvider).whenData((artists) {
+    final list = List<Artist>.from(artists); // source is name asc
+    switch (sort) {
+      case ArtistSort.name:
+        break;
+      case ArtistSort.trackCount:
+        list.sort((a, b) {
+          final byCount = b.trackCount.compareTo(a.trackCount);
+          if (byCount != 0) return byCount;
+          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        });
+      case ArtistSort.albumCount:
+        list.sort((a, b) {
+          final byCount = b.albumCount.compareTo(a.albumCount);
+          if (byCount != 0) return byCount;
+          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        });
+    }
+    return list;
+  });
+});

@@ -11,62 +11,128 @@ import '../providers/library_providers.dart';
 import '../widgets/album_card.dart';
 import '../widgets/song_tile.dart';
 
-class LibraryScreen extends ConsumerWidget {
+/// FEATURE (#9): the sort button now adapts to the active tab — Songs,
+/// Albums, and Artists each get their own sort options (previously only
+/// Songs was sortable).
+class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return DefaultTabController(
-      length: 5,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Library'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.search_rounded),
-              tooltip: 'Search',
-              onPressed: () => context.push('/search'),
-            ),
-            PopupMenuButton<SongSort>(
-              icon: const Icon(Icons.sort_rounded),
-              tooltip: 'Sort songs',
-              onSelected: (sort) =>
-                  ref.read(songSortProvider.notifier).state = sort,
-              itemBuilder: (context) => [
-                for (final sort in SongSort.values)
-                  CheckedPopupMenuItem(
-                    value: sort,
-                    checked: ref.read(songSortProvider) == sort,
-                    child: Text(sort.label),
-                  ),
-              ],
-            ),
-            const SizedBox(width: 4),
+  ConsumerState<LibraryScreen> createState() => _LibraryScreenState();
+}
+
+class _LibraryScreenState extends ConsumerState<LibraryScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 5, vsync: this);
+    // Rebuild the AppBar actions when the active tab changes.
+    _tabController.addListener(() {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Widget? _sortButton() {
+    switch (_tabController.index) {
+      case 0:
+        return PopupMenuButton<SongSort>(
+          icon: const Icon(Icons.sort_rounded),
+          tooltip: 'Sort songs',
+          onSelected: (sort) =>
+              ref.read(songSortProvider.notifier).state = sort,
+          itemBuilder: (context) => [
+            for (final sort in SongSort.values)
+              CheckedPopupMenuItem(
+                value: sort,
+                checked: ref.read(songSortProvider) == sort,
+                child: Text(sort.label),
+              ),
           ],
-          bottom: TabBar(
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            dividerColor: Colors.transparent,
-            labelStyle: Theme.of(context).textTheme.labelLarge,
-            tabs: const [
-              Tab(text: 'Songs'),
-              Tab(text: 'Albums'),
-              Tab(text: 'Artists'),
-              Tab(text: 'Playlists'),
-              Tab(text: 'Folders'),
-            ],
+        );
+      case 1:
+        return PopupMenuButton<AlbumSort>(
+          icon: const Icon(Icons.sort_rounded),
+          tooltip: 'Sort albums',
+          onSelected: (sort) =>
+              ref.read(albumSortProvider.notifier).state = sort,
+          itemBuilder: (context) => [
+            for (final sort in AlbumSort.values)
+              CheckedPopupMenuItem(
+                value: sort,
+                checked: ref.read(albumSortProvider) == sort,
+                child: Text(sort.label),
+              ),
+          ],
+        );
+      case 2:
+        return PopupMenuButton<ArtistSort>(
+          icon: const Icon(Icons.sort_rounded),
+          tooltip: 'Sort artists',
+          onSelected: (sort) =>
+              ref.read(artistSortProvider.notifier).state = sort,
+          itemBuilder: (context) => [
+            for (final sort in ArtistSort.values)
+              CheckedPopupMenuItem(
+                value: sort,
+                checked: ref.read(artistSortProvider) == sort,
+                child: Text(sort.label),
+              ),
+          ],
+        );
+      default:
+        return null; // Playlists / Folders have their own natural order.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sortButton = _sortButton();
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Library'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search_rounded),
+            tooltip: 'Search',
+            onPressed: () => context.push('/search'),
           ),
-        ),
-        body: const TabBarView(
-          physics: BouncingScrollPhysics(),
-          children: [
-            _SongsTab(),
-            _AlbumsTab(),
-            _ArtistsTab(),
-            PlaylistsTab(),
-            FoldersTab(),
+          if (sortButton != null) sortButton,
+          const SizedBox(width: 4),
+        ],
+        bottom: TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
+          dividerColor: Colors.transparent,
+          labelStyle: Theme.of(context).textTheme.labelLarge,
+          tabs: const [
+            Tab(text: 'Songs'),
+            Tab(text: 'Albums'),
+            Tab(text: 'Artists'),
+            Tab(text: 'Playlists'),
+            Tab(text: 'Folders'),
           ],
         ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        physics: const BouncingScrollPhysics(),
+        children: const [
+          _SongsTab(),
+          _AlbumsTab(),
+          _ArtistsTab(),
+          PlaylistsTab(),
+          FoldersTab(),
+        ],
       ),
     );
   }
@@ -178,7 +244,8 @@ class _AlbumsTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final albumsAsync = ref.watch(albumsProvider);
+    // FEATURE (#9): respects the album sort selection.
+    final albumsAsync = ref.watch(sortedAlbumsProvider);
     return albumsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => const Center(child: Text('Could not load albums')),
@@ -211,7 +278,8 @@ class _ArtistsTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final artistsAsync = ref.watch(artistsProvider);
+    // FEATURE (#9): respects the artist sort selection.
+    final artistsAsync = ref.watch(sortedArtistsProvider);
     final theme = Theme.of(context);
     return artistsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
