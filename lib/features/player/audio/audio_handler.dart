@@ -56,6 +56,36 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// is loaded. Pushed in from the persisted setting on app start.
   bool autoResumeOnDeviceConnect = false;
 
+  /// BUG FIX (#22b): consecutive watchdog ticks spent pinned at track end.
+  int _stallTicks = 0;
+
+  void _stallTick() {
+    if (!_player.playing) {
+      _stallTicks = 0;
+      return;
+    }
+    final duration = _player.duration;
+    if (duration == null || duration == Duration.zero) {
+      _stallTicks = 0;
+      return;
+    }
+    final nearEnd =
+        duration - _player.position <= const Duration(milliseconds: 300);
+    if (!nearEnd) {
+      _stallTicks = 0;
+      return;
+    }
+    if (++_stallTicks < 2) return; // still within a normal transition window
+    _stallTicks = 0;
+
+    // Stuck at the end while "playing": force the move ourselves.
+    final i = _player.currentIndex;
+    final hasNext = i != null && i + 1 < queue.value.length;
+    _cancelCrossfade();
+    _player.seek(Duration.zero, index: hasNext ? i + 1 : 0);
+    _player.play();
+  }
+
   /// Needed by the equalizer platform channel (audiofx attaches per-session).
   int? get androidAudioSessionId => _player.androidAudioSessionId;
 
@@ -203,6 +233,29 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       _resumeAfterInterruption = false;
       pause();
     });
+
+    // BUG FIX (#22a): wrap-around at the end of the queue. With repeat OFF,
+    // just_audio reports `completed` after the LAST track and simply stops.
+    // Standard player behaviour is to loop back to the first track and keep
+    // playing — so do exactly that. (With repeat all/one, just_audio already
+    // wraps by itself and `completed` never fires here.)
+    _player.processingStateStream.listen((state) async {
+      if (state != ProcessingState.completed) return;
+      if (_player.loopMode != LoopMode.off) return;
+      if (queue.value.isEmpty) return;
+      await _cancelCrossfade();
+      await _player.seek(Duration.zero, index: 0);
+      _player.play();
+    });
+
+    // BUG FIX (#22b): auto-advance watchdog. On some devices the lazily
+    // prepared playlist can stall at a track boundary — the track finishes
+    // but ExoPlayer never moves to the next one (player still "playing",
+    // position pinned at the end). Detect that state (stuck within 300ms of
+    // the end across two consecutive checks ≈ 3s) and force the advance.
+    // Normal playback never trips this: a real transition passes through
+    // the end zone in well under one check interval.
+    Timer.periodic(const Duration(milliseconds: 1500), (_) => _stallTick());
 
     // FEATURE (#18): opt-in auto-resume when a Bluetooth audio device
     // connects (headphones, car). Guarded so it only fires when paused with

@@ -2,16 +2,16 @@ import 'package:flutter/material.dart';
 
 /// Orvo design tokens.
 ///
-/// REDESIGN: the identity moves to a deep midnight-navy base with a violet
-/// accent (matching the new Home mockup) — dark surfaces carry a cool blue
-/// undertone and the accent reads as neon-lavender on them. The original
-/// garnet scale is kept for legacy gradients.
+/// REDESIGN v2: the accent moves from violet to an Apple Music-style
+/// pink → red scale on the same midnight-navy base. Field names keep their
+/// original "violet" identifiers so every existing reference updates
+/// automatically — only the values changed.
 abstract final class AppColors {
-  // Accent scale — violet
-  static const Color violet = Color(0xFF7C3AED); // primary (light surfaces)
-  static const Color violetBright = Color(0xFF9F7BFF); // primary (dark surfaces)
-  static const Color violetDeep = Color(0xFF4C1D95); // pressed / gradients
-  static const Color orchid = Color(0xFFC084FC); // secondary accent
+  // Accent scale — Apple Music pink/red
+  static const Color violet = Color(0xFFFA233B); // primary (light surfaces)
+  static const Color violetBright = Color(0xFFFF5C74); // primary (dark surfaces)
+  static const Color violetDeep = Color(0xFFB80F2E); // pressed / gradients
+  static const Color orchid = Color(0xFFFF7A93); // secondary accent
 
   // Legacy garnet scale (still used by placeholder gradients)
   static const Color garnet = Color(0xFFB4182D);

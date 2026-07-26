@@ -8,6 +8,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/theme_provider.dart' show sharedPreferencesProvider;
 import '../../core/widgets/artwork.dart';
 import '../../core/widgets/pressable.dart';
+import '../favorites/favorites_provider.dart';
 import '../library/domain/entities.dart';
 import '../library/providers/genre_providers.dart';
 import '../library/providers/library_providers.dart';
@@ -193,32 +194,8 @@ class _Header extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(20, 12, 12, 18),
       child: Row(
         children: [
-          Pressable(
-            onTap: () => _editName(context, ref),
-            child: Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [AppColors.violetBright, AppColors.violetDeep],
-                ),
-                border: Border.all(
-                    color: Colors.white.withOpacity(.15), width: 2),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                displayName[0].toUpperCase(),
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800),
-              ),
-            ),
-          ),
-          const SizedBox(width: 14),
+          // BUG FIX (#5 report): avatar circle removed — the greeting text
+          // itself remains the tap target for editing the name.
           Expanded(
             child: GestureDetector(
               onTap: () => _editName(context, ref),
@@ -384,7 +361,14 @@ class _PlaylistsRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (playlists.isEmpty) {
-      return Padding(
+      // BUG FIX (#23): even with no playlists, Liked Songs stays reachable.
+      return Column(
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: SizedBox(height: 176, child: Row(children: [_LikedSongsCard()])),
+          ),
+          Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Pressable(
           onTap: () => context.go('/library'),
@@ -416,6 +400,8 @@ class _PlaylistsRow extends ConsumerWidget {
             ),
           ),
         ),
+          ),
+        ],
       );
     }
 
@@ -425,10 +411,13 @@ class _PlaylistsRow extends ConsumerWidget {
         physics: const BouncingScrollPhysics(),
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: playlists.length,
+        // BUG FIX (#23): hearted songs were invisible on Home — the "Liked
+        // Songs" card now leads this shelf.
+        itemCount: playlists.length + 1,
         separatorBuilder: (_, __) => const SizedBox(width: 14),
         itemBuilder: (context, i) {
-          final playlist = playlists[i];
+          if (i == 0) return const _LikedSongsCard();
+          final playlist = playlists[i - 1];
           final color = AppColors.tileColorFor(playlist.name);
           final color2 = AppColors
               .tileColors[(AppColors.tileColors.indexOf(color) + 3) %
@@ -638,6 +627,52 @@ class _EmptyState extends StatelessWidget {
               child: OutlinedButton(
                   onPressed: onRefresh, child: const Text('Rescan'))),
         ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// BUG FIX (#23): "Liked Songs" card — hearted songs, finally visible on Home
+// ---------------------------------------------------------------------------
+
+class _LikedSongsCard extends ConsumerWidget {
+  const _LikedSongsCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final count = ref.watch(favoritesProvider).length;
+    return Pressable(
+      onTap: () => context.push('/collection/favorites'),
+      child: Container(
+        width: 150,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [AppColors.violetBright, AppColors.violetDeep],
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.favorite_rounded, color: Colors.white, size: 30),
+            const Spacer(),
+            const Text('Liked Songs',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800)),
+            const SizedBox(height: 2),
+            Text('$count Songs',
+                style: TextStyle(
+                    color: Colors.white.withOpacity(.85), fontSize: 12.5)),
+          ],
+        ),
       ),
     );
   }

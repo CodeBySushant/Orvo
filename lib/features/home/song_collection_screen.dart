@@ -1,37 +1,49 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../favorites/favorites_provider.dart';
 import '../library/domain/entities.dart';
 import '../library/providers/library_providers.dart';
 import '../library/widgets/song_tile.dart';
 import '../stats/play_stats.dart';
 
-/// "See All" target for the Home shelves: full lists of Recently Played or
-/// Recently Added songs.
+/// "See All" target for the Home shelves: full lists of Recently Played,
+/// Recently Added, or (BUG FIX #23) Favorite songs.
 class SongCollectionScreen extends ConsumerWidget {
   const SongCollectionScreen({super.key, required this.kind});
 
-  /// 'recent' = recently played, 'added' = recently added.
+  /// 'recent' = recently played, 'added' = recently added,
+  /// 'favorites' = hearted songs.
   final String kind;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isRecent = kind == 'recent';
-    final title = isRecent ? 'Recently Played' : 'Recently Added';
-    final songs = isRecent
-        ? (ref.watch(recentlyPlayedProvider).valueOrNull ?? const <Song>[])
-        : (ref.watch(songsProvider).valueOrNull ?? const <Song>[])
-            .take(100)
-            .toList(growable: false);
+    final (title, songs, emptyText) = switch (kind) {
+      'recent' => (
+          'Recently Played',
+          ref.watch(recentlyPlayedProvider).valueOrNull ?? const <Song>[],
+          'Nothing played yet — songs appear here\nafter 15 seconds of listening.',
+        ),
+      'favorites' => (
+          'Favorites',
+          ref.watch(favoriteSongsProvider),
+          'No favorites yet — tap the heart or\ndouble-tap the artwork on any song.',
+        ),
+      _ => (
+          'Recently Added',
+          (ref.watch(songsProvider).valueOrNull ?? const <Song>[])
+              .take(100)
+              .toList(growable: false),
+          'No songs found',
+        ),
+    };
 
     return Scaffold(
       appBar: AppBar(title: Text(title)),
       body: songs.isEmpty
           ? Center(
               child: Text(
-                isRecent
-                    ? 'Nothing played yet — songs appear here\nafter 15 seconds of listening.'
-                    : 'No songs found',
+                emptyText,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodySmall,
               ),
