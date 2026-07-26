@@ -188,6 +188,23 @@ class SettingsScreen extends ConsumerWidget {
                     },
             );
           }),
+          // FEATURE (#21): opt-in online lyrics (LRCLIB). Off by default so
+          // the no-network privacy promise holds unless the user opts in.
+          Consumer(builder: (context, ref, _) {
+            final online = ref.watch(onlineLyricsProvider);
+            return SwitchListTile(
+              secondary: const Icon(Icons.travel_explore_rounded),
+              title: const Text('Online lyrics'),
+              subtitle: Text(
+                'Fetch missing lyrics from LRCLIB and save them for offline use. '
+                'Sends only song title, artist and duration.',
+                style: theme.textTheme.labelMedium,
+              ),
+              value: online,
+              onChanged: (v) =>
+                  ref.read(onlineLyricsProvider.notifier).set(v),
+            );
+          }),
           const SizedBox(height: 24),
           _SectionLabel('About'),
           const ListTile(
@@ -199,7 +216,9 @@ class SettingsScreen extends ConsumerWidget {
             leading: Icon(Icons.lock_outline_rounded),
             title: Text('Privacy'),
             subtitle: Text(
-                'Fully offline. Your music and listening data never leave this device.'),
+                'Fully offline by default. Your music and listening data never '
+                'leave this device. If Online lyrics is on, only song titles, '
+                'artists and durations are sent to LRCLIB.'),
           ),
         ],
       ),

@@ -17,7 +17,7 @@ class AppDatabase {
     final path = p.join(await getDatabasesPath(), 'orvo.db');
     return openDatabase(
       path,
-      version: 3,
+      version: 4,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: (db, version) async {
         await db.execute('''
@@ -51,6 +51,7 @@ class AppDatabase {
         await db.execute(
             'CREATE INDEX idx_last_played ON play_stats(last_played_at DESC)');
         await _createPlayerState(db);
+        await _createLyricsCache(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         // FIX (#5): v2 adds the persisted playback session.
@@ -83,6 +84,11 @@ class AppDatabase {
           await db.execute(
               'CREATE INDEX idx_playlist_songs ON playlist_songs(playlist_id, position)');
         }
+        // FEATURE (#21): v4 adds the online-lyrics cache (fetched once from
+        // LRCLIB, then available fully offline).
+        if (oldVersion < 4) {
+          await _createLyricsCache(db);
+        }
       },
     );
   }
@@ -92,6 +98,19 @@ class AppDatabase {
           id INTEGER PRIMARY KEY CHECK(id = 1),
           payload TEXT NOT NULL,
           updated_at INTEGER NOT NULL
+        )
+      ''');
+
+  // FEATURE (#21): lyrics fetched online, cached per media-store song id.
+  // found = 0 rows are negative-cache entries ("looked, nothing there") so
+  // Orvo doesn't hammer the API for instrumentals on every open.
+  static Future<void> _createLyricsCache(Database db) => db.execute('''
+        CREATE TABLE IF NOT EXISTS lyrics_cache(
+          song_id INTEGER PRIMARY KEY,
+          synced TEXT,
+          plain TEXT,
+          found INTEGER NOT NULL DEFAULT 0,
+          fetched_at INTEGER NOT NULL
         )
       ''');
 }
