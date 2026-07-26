@@ -22,6 +22,8 @@ dependencies:
   path: ^1.9.0
   flutter_animate: ^4.5.0
   device_info_plus: ^13.2.0
+  dynamic_color: ^1.7.0
+  quick_actions: ^1.0.7
 
 dev_dependencies:
   flutter_test:

@@ -7,27 +7,38 @@ enum OrvoTheme { system, light, dark, amoled }
 
 abstract final class AppTheme {
   // REDESIGN: midnight-navy dark theme with violet accent (Home mockup).
-  static ThemeData get light => _base(
+  //
+  // FEATURE (#12): each builder optionally takes a Material You scheme
+  // (from dynamic_color, Android 12+). When present, the wallpaper-derived
+  // primary / secondary replace the violet accent while Orvo's own surfaces
+  // (porcelain / midnight / AMOLED black) and type scale are kept intact.
+  static ThemeData light([ColorScheme? dynamicScheme]) => _base(
         brightness: Brightness.light,
-        primary: AppColors.violet,
+        primary: dynamicScheme?.primary ?? AppColors.violet,
+        secondary: dynamicScheme?.secondary,
+        seed: dynamicScheme?.primary,
         scaffold: AppColors.porcelain,
         card: AppColors.porcelainCard,
         raised: const Color(0xFFEDECF6),
         onSurface: AppColors.inkOnLight,
       );
 
-  static ThemeData get dark => _base(
+  static ThemeData dark([ColorScheme? dynamicScheme]) => _base(
         brightness: Brightness.dark,
-        primary: AppColors.violetBright,
+        primary: dynamicScheme?.primary ?? AppColors.violetBright,
+        secondary: dynamicScheme?.secondary,
+        seed: dynamicScheme?.primary,
         scaffold: AppColors.midnight,
         card: AppColors.midnightCard,
         raised: AppColors.midnightRaised,
         onSurface: AppColors.mistOnDark,
       );
 
-  static ThemeData get amoled => _base(
+  static ThemeData amoled([ColorScheme? dynamicScheme]) => _base(
         brightness: Brightness.dark,
-        primary: AppColors.violetBright,
+        primary: dynamicScheme?.primary ?? AppColors.violetBright,
+        secondary: dynamicScheme?.secondary,
+        seed: dynamicScheme?.primary,
         scaffold: AppColors.trueBlack,
         card: AppColors.blackCard,
         raised: const Color(0xFF191C2B),
@@ -41,13 +52,15 @@ abstract final class AppTheme {
     required Color card,
     required Color raised,
     required Color onSurface,
+    Color? secondary,
+    Color? seed,
   }) {
     final scheme = ColorScheme.fromSeed(
-      seedColor: AppColors.violet,
+      seedColor: seed ?? AppColors.violet,
       brightness: brightness,
     ).copyWith(
       primary: primary,
-      secondary: AppColors.orchid,
+      secondary: secondary ?? AppColors.orchid,
       surface: scaffold,
       surfaceContainer: card,
       surfaceContainerHigh: raised,

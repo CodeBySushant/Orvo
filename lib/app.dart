@@ -1,3 +1,4 @@
+import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -12,24 +13,34 @@ class OrvoApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeSetting = ref.watch(themeProvider);
+    // FEATURE (#12): Material You — wallpaper-derived accent colors.
+    final useDynamic = ref.watch(dynamicColorProvider);
     final router = ref.watch(routerProvider);
 
-    final (ThemeData darkTheme, ThemeMode mode) = switch (themeSetting) {
-      OrvoTheme.system => (AppTheme.dark, ThemeMode.system),
-      OrvoTheme.light => (AppTheme.dark, ThemeMode.light),
-      OrvoTheme.dark => (AppTheme.dark, ThemeMode.dark),
-      OrvoTheme.amoled => (AppTheme.amoled, ThemeMode.dark),
-    };
+    return DynamicColorBuilder(
+      builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
+        // Null on Android < 12 (or when the toggle is off) — Orvo violet.
+        final lightScheme = useDynamic ? lightDynamic : null;
+        final darkScheme = useDynamic ? darkDynamic : null;
 
-    return MaterialApp.router(
-      title: 'Orvo',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
-      darkTheme: darkTheme,
-      themeMode: mode,
-      routerConfig: router,
-      builder: (context, child) =>
-          PermissionGate(child: child ?? const SizedBox.shrink()),
+        final (ThemeData darkTheme, ThemeMode mode) = switch (themeSetting) {
+          OrvoTheme.system => (AppTheme.dark(darkScheme), ThemeMode.system),
+          OrvoTheme.light => (AppTheme.dark(darkScheme), ThemeMode.light),
+          OrvoTheme.dark => (AppTheme.dark(darkScheme), ThemeMode.dark),
+          OrvoTheme.amoled => (AppTheme.amoled(darkScheme), ThemeMode.dark),
+        };
+
+        return MaterialApp.router(
+          title: 'Orvo',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light(lightScheme),
+          darkTheme: darkTheme,
+          themeMode: mode,
+          routerConfig: router,
+          builder: (context, child) =>
+              PermissionGate(child: child ?? const SizedBox.shrink()),
+        );
+      },
     );
   }
 }

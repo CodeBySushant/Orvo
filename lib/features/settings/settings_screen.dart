@@ -45,6 +45,19 @@ class SettingsScreen extends ConsumerWidget {
               ],
             ),
           ),
+          // FEATURE (#12): Material You — wallpaper-derived accent colors.
+          Consumer(builder: (context, ref, _) {
+            final dynamicOn = ref.watch(dynamicColorProvider);
+            return SwitchListTile(
+              secondary: const Icon(Icons.palette_outlined),
+              title: const Text('Material You'),
+              subtitle: Text('Use your wallpaper colors (Android 12+)',
+                  style: theme.textTheme.labelMedium),
+              value: dynamicOn,
+              onChanged: (v) =>
+                  ref.read(dynamicColorProvider.notifier).set(v),
+            );
+          }),
           const SizedBox(height: 24),
           _SectionLabel('Audio'),
           ListTile(
@@ -65,6 +78,20 @@ class SettingsScreen extends ConsumerWidget {
               value: smooth,
               onChanged: (v) =>
                   ref.read(smoothTransitionsProvider.notifier).set(v),
+            );
+          }),
+          // FEATURE (#18): opt-in auto-resume when Bluetooth audio connects.
+          Consumer(builder: (context, ref, _) {
+            final btResume = ref.watch(btAutoResumeProvider);
+            return SwitchListTile(
+              secondary: const Icon(Icons.bluetooth_audio_rounded),
+              title: const Text('Resume on Bluetooth'),
+              subtitle: Text(
+                  'Auto-play when your headphones or car connect',
+                  style: theme.textTheme.labelMedium),
+              value: btResume,
+              onChanged: (v) =>
+                  ref.read(btAutoResumeProvider.notifier).set(v),
             );
           }),
           // FEATURE (crossfade v1): auto-crossfade between tracks.

@@ -7,6 +7,7 @@ import '../features/player/widgets/mini_player.dart';
 import '../features/player/data/playback_persistence.dart';
 import '../features/player/providers/audio_settings.dart';
 import '../features/player/providers/player_providers.dart';
+import '../features/shortcuts/app_shortcuts.dart';
 import '../features/stats/play_stats.dart';
 import '../features/widget/widget_updater.dart';
 
@@ -44,6 +45,11 @@ class AppShell extends ConsumerWidget {
     ref.watch(crossfadeProvider);
     // Keep the home-screen widget in sync with playback.
     ref.watch(widgetUpdaterProvider);
+    // FEATURE (#18): push the persisted Bluetooth auto-resume setting into
+    // the audio handler so it applies from app start.
+    ref.watch(btAutoResumeProvider);
+    // FEATURE (#15): register the launcher app shortcuts and their handler.
+    ref.watch(appShortcutsProvider);
     // FIX (#2): apply persisted EQ settings as soon as playback starts,
     // instead of waiting for the user to open the equalizer screen.
     ref.watch(equalizerAutoAttachProvider);

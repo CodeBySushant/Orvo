@@ -51,6 +51,11 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// interruption (phone call, alarm) ends.
   bool _resumeAfterInterruption = false;
 
+  /// FEATURE (#18): opt-in — when true, paused playback auto-resumes when a
+  /// Bluetooth audio device (headphones / car stereo) connects while a queue
+  /// is loaded. Pushed in from the persisted setting on app start.
+  bool autoResumeOnDeviceConnect = false;
+
   /// Needed by the equalizer platform channel (audiofx attaches per-session).
   int? get androidAudioSessionId => _player.androidAudioSessionId;
 
@@ -197,6 +202,27 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     session.becomingNoisyEventStream.listen((_) {
       _resumeAfterInterruption = false;
       pause();
+    });
+
+    // FEATURE (#18): opt-in auto-resume when a Bluetooth audio device
+    // connects (headphones, car). Guarded so it only fires when paused with
+    // a real queue, and re-checked after a short delay so the system has
+    // time to route audio to the new device — and so a user action in the
+    // meantime always wins.
+    session.devicesChangedEventStream.listen((event) async {
+      if (!autoResumeOnDeviceConnect) return;
+      final bluetoothAdded = event.devicesAdded.any((d) =>
+          d.type == AudioDeviceType.bluetoothA2dp ||
+          d.type == AudioDeviceType.bluetoothSco);
+      if (!bluetoothAdded) return;
+      if (_player.playing || queue.value.isEmpty) return;
+      await Future.delayed(const Duration(milliseconds: 1200));
+      if (!autoResumeOnDeviceConnect ||
+          _player.playing ||
+          queue.value.isEmpty) {
+        return;
+      }
+      play();
     });
 
     // FIX (#7): duck / pause on interruptions (calls, navigation prompts),

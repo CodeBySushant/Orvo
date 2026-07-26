@@ -26,3 +26,22 @@ class ThemeNotifier extends Notifier<OrvoTheme> {
 
 final themeProvider =
     NotifierProvider<ThemeNotifier, OrvoTheme>(ThemeNotifier.new);
+
+// FEATURE (#12): Material You — seed the app's accent colors from the
+// user's wallpaper (Android 12+). Persisted, off by default so the Orvo
+// violet identity stays the out-of-the-box look.
+const _kDynamicColorKey = 'orvo.dynamicColor';
+
+class DynamicColorNotifier extends Notifier<bool> {
+  @override
+  bool build() =>
+      ref.read(sharedPreferencesProvider).getBool(_kDynamicColorKey) ?? false;
+
+  void set(bool value) {
+    state = value;
+    ref.read(sharedPreferencesProvider).setBool(_kDynamicColorKey, value);
+  }
+}
+
+final dynamicColorProvider =
+    NotifierProvider<DynamicColorNotifier, bool>(DynamicColorNotifier.new);
