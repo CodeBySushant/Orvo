@@ -5,7 +5,6 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:on_audio_query_pluse/on_audio_query.dart' show ArtworkType;
 
 import '../../../core/theme/app_colors.dart';
@@ -121,7 +120,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                             onSurface: Colors.white),
                         const SizedBox(height: 12),
                         _Controls(accent: palette.accent),
-                        const SizedBox(height: 8),
+                        // REDESIGN v2: bigger gap so the transport block sits
+                        // higher while Up Next stays anchored at the bottom.
+                        const SizedBox(height: 24),
                         _FeatureRow(accent: palette.accent),
                         // REDESIGN: extra breathing room lifts everything a
                         // touch above the Up Next handle / bottom edge.
@@ -560,14 +561,21 @@ class _TitleRow extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 4),
-          // REDESIGN: equalizer lives beside the favorites heart.
-          IconButton(
-            tooltip: 'Equalizer',
-            onPressed: () => context.push('/equalizer'),
-            iconSize: 24,
-            icon: Icon(Icons.equalizer_rounded,
-                color: Colors.white.withOpacity(.75)),
-          ),
+          // REDESIGN v2: audio options (EQ, crossfade, sleep timer, speed)
+          // moved up beside the favorites heart — accent-lit while a sleep
+          // timer is running.
+          Consumer(builder: (context, ref, _) {
+            final timerActive = ref.watch(sleepTimerProvider).active;
+            return IconButton(
+              tooltip: 'Audio options',
+              onPressed: () => AudioOptionsSheet.show(context),
+              iconSize: 24,
+              icon: Icon(Icons.tune_rounded,
+                  color: timerActive
+                      ? accent
+                      : Colors.white.withOpacity(.75)),
+            );
+          }),
           IconButton(
             onPressed: songId == null
                 ? null
@@ -662,38 +670,17 @@ class _Controls extends ConsumerWidget {
   }
 }
 
-/// Secondary actions under the transport controls: lyrics, the Up Next
-/// queue handle (tap or swipe up), and audio options (accent-lit when the
-/// sleep timer is running — the cue the removed moon icon used to carry).
-class _FeatureRow extends ConsumerWidget {
+/// REDESIGN v2: the bottom row is now clean — just the centered "Up Next"
+/// handle. Lyrics live behind an artwork swipe, and audio options moved up
+/// beside the favorites heart.
+class _FeatureRow extends StatelessWidget {
   const _FeatureRow({required this.accent});
   final Color accent;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final timer = ref.watch(sleepTimerProvider);
-    final inactive = Colors.white.withOpacity(.6);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 36),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // REDESIGN: lyrics icon removed — swipe the artwork instead.
-          const SizedBox(width: 48),
-          // REDESIGN: "Up Next" handle — tap or swipe up to open the queue.
-          _UpNextHandle(onOpen: () => QueueSheet.show(context)),
-          IconButton(
-            tooltip: 'Audio options',
-            onPressed: () => AudioOptionsSheet.show(context),
-            icon: Icon(
-              Icons.tune_rounded,
-              size: 22,
-              color: timer.active ? accent : inactive,
-            ),
-          ),
-        ],
-      ),
+  Widget build(BuildContext context) {
+    return Center(
+      child: _UpNextHandle(onOpen: () => QueueSheet.show(context)),
     );
   }
 }
