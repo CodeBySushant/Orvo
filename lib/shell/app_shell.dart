@@ -35,6 +35,9 @@ class AppShell extends ConsumerWidget {
     ref.watch(playTrackerProvider);
     // Push the persisted smooth-transitions setting into the audio handler.
     ref.watch(smoothTransitionsProvider);
+    // FEATURE (crossfade v1): push the persisted crossfade length into the
+    // audio handler so it applies from app start.
+    ref.watch(crossfadeProvider);
     // Keep the home-screen widget in sync with playback.
     ref.watch(widgetUpdaterProvider);
     // FIX (#2): apply persisted EQ settings as soon as playback starts,

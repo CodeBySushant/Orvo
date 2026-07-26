@@ -71,9 +71,63 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// rapid play/pause/skip taps can't race the volume ramp.
   int _fadeToken = 0;
 
+  // --- FEATURE (crossfade v1) --------------------------------------------
+  //
+  // Radio-style auto-crossfade on the single-player engine: the ending
+  // track fades out over its final N seconds and the next fades in.
+  // True dual-player overlap is deliberately NOT used: Android's audiofx
+  // equalizer binds to one audio session, so a second player would play
+  // un-EQ'd through every transition (and would break the lazy gapless
+  // queue). This version keeps EQ, gapless, and persistence fully intact.
+
+  Duration _crossfade = Duration.zero;
+  Timer? _crossfadeTicker;
+  bool _crossfadingOut = false;
+
+  set crossfadeDuration(Duration value) {
+    _crossfade = value;
+    if (value == Duration.zero) {
+      _crossfadeTicker?.cancel();
+      _crossfadeTicker = null;
+    } else {
+      _crossfadeTicker ??= Timer.periodic(
+          const Duration(milliseconds: 400), (_) => _crossfadeTick());
+    }
+  }
+
+  void _crossfadeTick() {
+    if (_crossfade == Duration.zero || _crossfadingOut) return;
+    if (!_player.playing) return;
+    if (_player.loopMode == LoopMode.one) return; // looping one track: no fade
+    final duration = _player.duration;
+    if (duration == null || duration <= _crossfade) return;
+    final remaining = duration - _player.position;
+    if (remaining <= Duration.zero || remaining > _crossfade) return;
+
+    final i = _player.currentIndex;
+    final hasNext = (i != null && i + 1 < queue.value.length) ||
+        (_player.loopMode == LoopMode.all && queue.value.length > 1);
+    if (!hasNext) return; // last track, no repeat: let it end naturally
+
+    _crossfadingOut = true;
+    final fadeSpan = remaining - const Duration(milliseconds: 150);
+    if (fadeSpan > Duration.zero) {
+      _fadeVolume(_player.volume, 0.05, fadeSpan); // deliberately not awaited
+    }
+  }
+
+  /// Cancels any crossfade in progress and restores full volume. Called by
+  /// every manual transport action so user intent always wins.
+  Future<void> _cancelCrossfade({bool restoreVolume = true}) async {
+    _crossfadingOut = false;
+    _fadeToken++;
+    if (restoreVolume) await _player.setVolume(1);
+  }
+
   Future<void> _fadeVolume(double from, double to, Duration duration) async {
     final token = ++_fadeToken;
-    const steps = 8;
+    // More steps for long crossfades, few for short button ramps.
+    final steps = (duration.inMilliseconds / 100).clamp(8, 60).round();
     final stepMs = duration.inMilliseconds ~/ steps;
     for (var i = 1; i <= steps; i++) {
       if (token != _fadeToken) return; // superseded by a newer transport op
@@ -124,6 +178,19 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       if (index != null && index >= 0 && index < q.length) {
         mediaItem.add(q[index]);
       }
+      // FEATURE (crossfade v1): the previous track faded out — bring the
+      // new one in gently instead of snapping to full volume.
+      if (_crossfadingOut) {
+        _crossfadingOut = false;
+        if (_crossfade > Duration.zero) {
+          _player.setVolume(0);
+          final fadeInMs =
+              (_crossfade.inMilliseconds * .6).round().clamp(400, 4000);
+          _fadeVolume(0, 1, Duration(milliseconds: fadeInMs));
+        } else {
+          _player.setVolume(1);
+        }
+      }
     });
 
     // Pause when headphones are unplugged (never auto-resume from this).
@@ -172,6 +239,7 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     Duration position = Duration.zero,
     bool resume = false,
   }) async {
+    await _cancelCrossfade();
     queue.add(items);
     _playlist = ConcatenatingAudioSource(
       useLazyPreparation: true,
@@ -315,17 +383,23 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   @override
   Future<void> play() async {
+    _crossfadingOut = false;
     if (fadeEnabled && !_player.playing) {
       await _player.setVolume(0);
       _player.play();
       await _fadeVolume(0, 1, const Duration(milliseconds: 260));
     } else {
+      if (!_player.playing) {
+        _fadeToken++;
+        await _player.setVolume(1);
+      }
       await _player.play();
     }
   }
 
   @override
   Future<void> pause() async {
+    _crossfadingOut = false;
     if (fadeEnabled && _player.playing) {
       await _fadeVolume(_player.volume, 0, const Duration(milliseconds: 200));
       await _player.pause();
@@ -336,10 +410,14 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   @override
-  Future<void> seek(Duration position) => _player.seek(position);
+  Future<void> seek(Duration position) async {
+    await _cancelCrossfade();
+    await _player.seek(position);
+  }
 
   @override
   Future<void> skipToNext() async {
+    _crossfadingOut = false;
     if (fadeEnabled && _player.playing) {
       await _fadeVolume(_player.volume, 0, const Duration(milliseconds: 160));
       await _player.seekToNext();
@@ -351,8 +429,10 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   @override
   Future<void> skipToPrevious() async {
+    _crossfadingOut = false;
     // Standard behaviour: restart the track after 3s, otherwise go back.
     if (_player.position > const Duration(seconds: 3)) {
+      await _cancelCrossfade();
       await _player.seek(Duration.zero);
       return;
     }
@@ -368,6 +448,7 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   @override
   Future<void> skipToQueueItem(int index) async {
     if (index < 0 || index >= queue.value.length) return;
+    _crossfadingOut = false;
     // FIX (#17): respect the smooth-transitions setting here too.
     if (fadeEnabled && _player.playing) {
       await _fadeVolume(_player.volume, 0, const Duration(milliseconds: 160));

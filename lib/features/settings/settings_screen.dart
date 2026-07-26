@@ -67,6 +67,44 @@ class SettingsScreen extends ConsumerWidget {
                   ref.read(smoothTransitionsProvider.notifier).set(v),
             );
           }),
+          // FEATURE (crossfade v1): auto-crossfade between tracks.
+          Consumer(builder: (context, ref, _) {
+            final seconds = ref.watch(crossfadeProvider);
+            return ListTile(
+              leading: const Icon(Icons.compare_arrows_rounded),
+              title: const Text('Crossfade'),
+              subtitle: Text(
+                seconds == 0
+                    ? 'Off — tracks change instantly'
+                    : 'Tracks blend over $seconds seconds',
+                style: theme.textTheme.labelMedium,
+              ),
+              trailing: Text(seconds == 0 ? 'Off' : '${seconds}s',
+                  style: theme.textTheme.labelLarge),
+              onTap: () async {
+                final picked = await showDialog<int>(
+                  context: context,
+                  builder: (dialogContext) => SimpleDialog(
+                    title: const Text('Crossfade'),
+                    children: [
+                      for (final option in CrossfadeNotifier.options)
+                        RadioListTile<int>(
+                          value: option,
+                          groupValue: seconds,
+                          title: Text(
+                              option == 0 ? 'Off' : '$option seconds'),
+                          onChanged: (v) =>
+                              Navigator.pop(dialogContext, v),
+                        ),
+                    ],
+                  ),
+                );
+                if (picked != null) {
+                  ref.read(crossfadeProvider.notifier).set(picked);
+                }
+              },
+            );
+          }),
           const SizedBox(height: 24),
           _SectionLabel('Library'),
           ListTile(

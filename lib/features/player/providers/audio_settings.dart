@@ -4,6 +4,7 @@ import '../../../core/theme/theme_provider.dart' show sharedPreferencesProvider;
 import 'player_providers.dart';
 
 const _kSmoothKey = 'orvo.smoothTransitions';
+const _kCrossfadeKey = 'orvo.crossfadeSec';
 
 /// "Smooth transitions": short volume ramps on play / pause / skip.
 /// Persisted, and pushed into the audio handler on read.
@@ -26,6 +27,32 @@ class SmoothTransitionsNotifier extends Notifier<bool> {
 final smoothTransitionsProvider =
     NotifierProvider<SmoothTransitionsNotifier, bool>(
         SmoothTransitionsNotifier.new);
+
+/// FEATURE (crossfade v1): auto-crossfade length in seconds (0 = off).
+/// The ending track fades out over its final N seconds and the next track
+/// fades in. Persisted, and pushed into the audio handler on read.
+class CrossfadeNotifier extends Notifier<int> {
+  static const options = [0, 2, 4, 6, 8, 12];
+
+  @override
+  int build() {
+    final value =
+        ref.read(sharedPreferencesProvider).getInt(_kCrossfadeKey) ?? 0;
+    ref.read(audioHandlerProvider).crossfadeDuration =
+        Duration(seconds: value);
+    return value;
+  }
+
+  void set(int seconds) {
+    state = seconds;
+    ref.read(audioHandlerProvider).crossfadeDuration =
+        Duration(seconds: seconds);
+    ref.read(sharedPreferencesProvider).setInt(_kCrossfadeKey, seconds);
+  }
+}
+
+final crossfadeProvider =
+    NotifierProvider<CrossfadeNotifier, int>(CrossfadeNotifier.new);
 
 /// Current playback speed, mirrored from the engine for UI display.
 final playbackSpeedProvider = Provider<double>(
