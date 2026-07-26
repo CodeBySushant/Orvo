@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:on_audio_query_pluse/on_audio_query.dart' show ArtworkType;
 
@@ -428,43 +429,20 @@ class _Controls extends ConsumerWidget {
           ),
           IconButton(
             onPressed: handler.skipToPrevious,
-            iconSize: 40,
+            iconSize: 34,
             icon: const Icon(Icons.skip_previous_rounded,
                 color: Colors.white),
           ),
-          GestureDetector(
+          // REDESIGN: square play/pause with a true morphing icon animation
+          // (triangle physically bends into the pause bars) + press squish.
+          _PlayPauseButton(
+            playing: playing,
+            accent: accent,
             onTap: playing ? handler.pause : handler.play,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              width: 74,
-              height: 74,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: accent,
-                boxShadow: [
-                  BoxShadow(
-                    color: accent.withOpacity(.45),
-                    blurRadius: 26,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 180),
-                transitionBuilder: (child, anim) =>
-                    ScaleTransition(scale: anim, child: child),
-                child: Icon(
-                  playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                  key: ValueKey(playing),
-                  size: 40,
-                  color: Colors.black.withOpacity(.85),
-                ),
-              ),
-            ),
           ),
           IconButton(
             onPressed: handler.skipToNext,
-            iconSize: 40,
+            iconSize: 34,
             icon: const Icon(Icons.skip_next_rounded, color: Colors.white),
           ),
           IconButton(
@@ -489,8 +467,9 @@ class _Controls extends ConsumerWidget {
   }
 }
 
-/// Secondary actions under the transport controls: lyrics, speed,
-/// sleep timer (accent-lit when active), and audio options.
+/// Secondary actions under the transport controls: lyrics, the Up Next
+/// queue handle (tap or swipe up), and audio options (accent-lit when the
+/// sleep timer is running — the cue the removed moon icon used to carry).
 class _FeatureRow extends ConsumerWidget {
   const _FeatureRow({required this.accent});
   final Color accent;
@@ -510,21 +489,59 @@ class _FeatureRow extends ConsumerWidget {
             onPressed: () => LyricsSheet.show(context),
             icon: Icon(Icons.lyrics_outlined, size: 22, color: inactive),
           ),
+          // REDESIGN: "Up Next" handle — tap or swipe up to open the queue.
+          _UpNextHandle(onOpen: () => QueueSheet.show(context)),
           IconButton(
-            tooltip: 'Sleep timer',
+            tooltip: 'Audio options',
             onPressed: () => AudioOptionsSheet.show(context),
             icon: Icon(
-              Icons.bedtime_outlined,
+              Icons.tune_rounded,
               size: 22,
               color: timer.active ? accent : inactive,
             ),
           ),
-          IconButton(
-            tooltip: 'Audio options',
-            onPressed: () => AudioOptionsSheet.show(context),
-            icon: Icon(Icons.tune_rounded, size: 22, color: inactive),
-          ),
         ],
+      ),
+    );
+  }
+}
+
+/// REDESIGN: chevron + "UP NEXT" label that opens the queue sheet with all
+/// upcoming songs. Responds to a tap AND an upward swipe, with a gentle
+/// idle float on the chevron hinting that it pulls up.
+class _UpNextHandle extends StatelessWidget {
+  const _UpNextHandle({required this.onOpen});
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Colors.white.withOpacity(.65);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onOpen,
+      onVerticalDragEnd: (details) {
+        if ((details.primaryVelocity ?? 0) < -200) onOpen(); // swiped up
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.keyboard_arrow_up_rounded, size: 22, color: color)
+                .animate(onPlay: (c) => c.repeat(reverse: true))
+                .moveY(begin: 2, end: -2, duration: 900.ms,
+                    curve: Curves.easeInOut),
+            Text(
+              'UP NEXT',
+              style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.4,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -552,6 +569,99 @@ class _NothingPlaying extends StatelessWidget {
               style: TextStyle(
                   color: Colors.white.withOpacity(.45), fontSize: 13)),
         ],
+      ),
+    );
+  }
+}
+
+/// REDESIGN: the main transport button — a rounded SQUARE (not a circle)
+/// with two layered animations:
+///  1. AnimatedIcon(play_pause): Flutter's built-in morph — the play
+///     triangle physically bends into the pause bars and back.
+///  2. A quick scale "squish" on press for tactile feedback.
+/// The corner radius also eases slightly (rounder while playing) so the
+/// state change reads on the shape itself, not just the glyph.
+///
+/// Stays in sync with EXTERNAL play/pause too (notification, headset,
+/// widget): the morph is driven by the playing flag from the handler, not
+/// by the tap.
+class _PlayPauseButton extends StatefulWidget {
+  const _PlayPauseButton({
+    required this.playing,
+    required this.accent,
+    required this.onTap,
+  });
+
+  final bool playing;
+  final Color accent;
+  final Future<void> Function() onTap;
+
+  @override
+  State<_PlayPauseButton> createState() => _PlayPauseButtonState();
+}
+
+class _PlayPauseButtonState extends State<_PlayPauseButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _morph = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 260),
+    value: widget.playing ? 1 : 0, // 0 = play glyph, 1 = pause glyph
+  );
+
+  bool _pressed = false;
+
+  @override
+  void didUpdateWidget(covariant _PlayPauseButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.playing != widget.playing) {
+      widget.playing ? _morph.forward() : _morph.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _morph.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _pressed ? .9 : 1,
+        duration: const Duration(milliseconds: 110),
+        curve: Curves.easeOut,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+          width: 64,
+          height: 64,
+          decoration: BoxDecoration(
+            // Square with softly eased corners — a touch rounder while
+            // playing so the whole button "breathes" with the state.
+            borderRadius: BorderRadius.circular(widget.playing ? 22 : 17),
+            color: widget.accent,
+            boxShadow: [
+              BoxShadow(
+                color: widget.accent.withOpacity(.45),
+                blurRadius: 22,
+                offset: const Offset(0, 7),
+              ),
+            ],
+          ),
+          child: Center(
+            child: AnimatedIcon(
+              icon: AnimatedIcons.play_pause,
+              progress: _morph,
+              size: 34,
+              color: Colors.black.withOpacity(.85),
+            ),
+          ),
+        ),
       ),
     );
   }
