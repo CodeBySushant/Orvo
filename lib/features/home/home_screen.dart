@@ -59,7 +59,7 @@ class HomeScreen extends ConsumerWidget {
           error: (e, _) => _EmptyState(
             title: 'Something went wrong',
             body: 'The library scan failed. Pull to try again.',
-            onRefresh: () => ref.invalidate(songsProvider),
+            onRefresh: () => ref.invalidate(rawSongsProvider),
           ),
           data: (songs) {
             if (songs.isEmpty) {
@@ -67,12 +67,12 @@ class HomeScreen extends ConsumerWidget {
                 title: 'No music yet',
                 body:
                     'Add audio files to this device and Orvo will pick them up.',
-                onRefresh: () => ref.invalidate(songsProvider),
+                onRefresh: () => ref.invalidate(rawSongsProvider),
               );
             }
             return RefreshIndicator(
               onRefresh: () async {
-                ref.invalidate(songsProvider);
+                ref.invalidate(rawSongsProvider);
                 ref.invalidate(albumsProvider);
                 ref.invalidate(artistsProvider);
                 ref.invalidate(genresProvider);

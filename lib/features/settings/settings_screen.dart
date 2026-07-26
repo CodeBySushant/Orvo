@@ -177,13 +177,22 @@ class SettingsScreen extends ConsumerWidget {
             ),
             onTap: () {
               ArtworkCache.instance.clear();
-              ref.invalidate(songsProvider);
+              ref.invalidate(rawSongsProvider);
               ref.invalidate(albumsProvider);
               ref.invalidate(artistsProvider);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text(t.rescanning)),
               );
             },
+          ),
+          // FEATURE (#25): folder exclusions manager.
+          ListTile(
+            leading: const Icon(Icons.folder_off_outlined),
+            title: Text(t.excludedFolders),
+            subtitle: Text(t.excludedFoldersSub,
+                style: theme.textTheme.labelMedium),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => context.push('/excluded-folders'),
           ),
           // FIX (#10): scoped storage blocks reading .lrc files owned by
           // other apps on Android 11+; a picked folder with a persisted SAF

@@ -260,7 +260,7 @@ class SongTile extends ConsumerWidget {
                 final ok = await SystemChannel.deleteSong(song.uri);
                 if (!context.mounted) return;
                 if (ok) {
-                  ref.invalidate(songsProvider);
+                  ref.invalidate(rawSongsProvider);
                   ref.invalidate(albumsProvider);
                   ref.invalidate(artistsProvider);
                   ScaffoldMessenger.of(context).showSnackBar(

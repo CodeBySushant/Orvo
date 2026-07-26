@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../core/i18n/l10n.dart';
 import '../features/equalizer/equalizer_provider.dart';
+import '../features/library/providers/exclusions_bootstrap.dart';
 import '../features/player/widgets/mini_player.dart';
 import '../features/player/data/playback_persistence.dart';
 import '../features/player/providers/audio_settings.dart';
@@ -57,6 +58,9 @@ class AppShell extends ConsumerWidget {
     // FIX (#2): apply persisted EQ settings as soon as playback starts,
     // instead of waiting for the user to open the equalizer screen.
     ref.watch(equalizerAutoAttachProvider);
+    // FEATURE (#25): apply first-run smart folder exclusions after the
+    // first raw scan (WhatsApp audio, recordings, notifications…).
+    ref.watch(exclusionDefaultsProvider);
     // FIX (#16): purge stats / playlist rows / favorites for songs deleted
     // from the device, after each successful scan.
     ref.watch(libraryCleanupProvider);

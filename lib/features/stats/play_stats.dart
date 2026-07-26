@@ -169,7 +169,9 @@ final mostPlayedProvider = FutureProvider<List<Song>>(
 /// play_stats, playlist_songs, and favorites. Previously these accumulated
 /// forever. Kept alive for the whole app session by app_shell.
 final libraryCleanupProvider = Provider<void>((ref) {
-  ref.listen(songsProvider, (previous, next) {
+  // FEATURE (#25): listen to the RAW scan so folder exclusions never purge
+  // favorites / playlist rows / stats — only truly deleted files do.
+  ref.listen(rawSongsProvider, (previous, next) {
     final songs = next.valueOrNull;
     // Empty can mean "permission lost" or "scan failed" — never treat it
     // as "everything was deleted".

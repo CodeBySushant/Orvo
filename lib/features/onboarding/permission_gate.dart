@@ -175,7 +175,7 @@ class _PermissionGateState extends ConsumerState<PermissionGate>
   void _grant() {
     setState(() => _state = _GateState.granted);
     ref.read(permissionGrantedProvider.notifier).state = true;
-    ref.invalidate(songsProvider);
+    ref.invalidate(rawSongsProvider);
     ref.invalidate(albumsProvider);
     ref.invalidate(artistsProvider);
   }

@@ -26,24 +26,32 @@ String _basename(String path) {
   return i < 0 ? path : path.substring(i + 1);
 }
 
+List<MusicFolder> _foldersFrom(List<Song> songs) {
+  final counts = <String, int>{};
+  for (final song in songs) {
+    final dir = _dirname(song.path);
+    counts[dir] = (counts[dir] ?? 0) + 1;
+  }
+  return [
+    for (final entry in counts.entries)
+      MusicFolder(
+        path: entry.key,
+        name: _basename(entry.key),
+        songCount: entry.value,
+      ),
+  ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+}
+
 /// Folders derived from the in-memory song list — no extra media queries.
+/// Excluded folders are already filtered out here (Folders tab stays clean).
 final foldersProvider = Provider<AsyncValue<List<MusicFolder>>>((ref) {
-  return ref.watch(songsProvider).whenData((songs) {
-    final counts = <String, int>{};
-    for (final song in songs) {
-      final dir = _dirname(song.path);
-      counts[dir] = (counts[dir] ?? 0) + 1;
-    }
-    final folders = [
-      for (final entry in counts.entries)
-        MusicFolder(
-          path: entry.key,
-          name: _basename(entry.key),
-          songCount: entry.value,
-        ),
-    ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-    return folders;
-  });
+  return ref.watch(songsProvider).whenData(_foldersFrom);
+});
+
+/// FEATURE (#25): ALL folders from the raw scan, including excluded ones —
+/// the exclusion screen needs these so hidden folders stay restorable.
+final rawFoldersProvider = Provider<AsyncValue<List<MusicFolder>>>((ref) {
+  return ref.watch(rawSongsProvider).whenData(_foldersFrom);
 });
 
 /// Songs inside one folder, keeping library (date-added) order.

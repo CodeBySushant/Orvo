@@ -3,6 +3,7 @@ import 'package:on_audio_query_pluse/on_audio_query.dart';
 
 import '../data/library_repository_impl.dart';
 import '../domain/entities.dart';
+import 'exclusions_provider.dart';
 import '../domain/library_repository.dart';
 
 final libraryRepositoryProvider = Provider<LibraryRepository>(
@@ -14,10 +15,26 @@ final libraryRepositoryProvider = Provider<LibraryRepository>(
 /// never called without permission (which crashes it).
 final permissionGrantedProvider = StateProvider<bool>((ref) => false);
 
-/// Master song list, newest first. Refresh with ref.invalidate(songsProvider).
-final songsProvider = FutureProvider<List<Song>>((ref) async {
+/// FEATURE (#25): the RAW scan — every audio file on the device, before
+/// folder exclusions. Cleanup (#16) and the exclusion screen use this so
+/// excluding a folder never destroys favorites / playlists / stats.
+/// Refresh with ref.invalidate(rawSongsProvider).
+final rawSongsProvider = FutureProvider<List<Song>>((ref) async {
   if (!ref.watch(permissionGrantedProvider)) return const [];
   return ref.watch(libraryRepositoryProvider).songs();
+});
+
+/// Master song list, newest first, with excluded folders filtered out.
+/// Everything downstream (albums shelf order, search, home, folders tab,
+/// genres, shuffle) derives from this, so exclusions apply everywhere.
+final songsProvider = FutureProvider<List<Song>>((ref) async {
+  final songs = await ref.watch(rawSongsProvider.future);
+  final excluded = ref.watch(excludedFoldersProvider);
+  if (excluded.isEmpty) return songs;
+  return [
+    for (final s in songs)
+      if (!isExcludedPath(s.path, excluded)) s,
+  ];
 });
 
 final albumsProvider = FutureProvider<List<Album>>((ref) async {

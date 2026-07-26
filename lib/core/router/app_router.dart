@@ -10,6 +10,7 @@ import '../../features/equalizer/equalizer_screen.dart';
 import '../../features/library/screens/folder_detail_screen.dart';
 import '../../features/library/screens/genre_screens.dart';
 import '../../features/library/screens/library_screen.dart';
+import '../../features/library/screens/excluded_folders_screen.dart';
 import '../../features/player/screens/now_playing_screen.dart';
 import '../../features/playlists/screens/playlist_detail_screen.dart';
 import '../../features/search/search_screen.dart';
@@ -91,6 +92,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/equalizer',
         builder: (context, state) => const EqualizerScreen(),
+      ),
+      // FEATURE (#25): folder exclusions manager.
+      GoRoute(
+        path: '/excluded-folders',
+        builder: (context, state) => const ExcludedFoldersScreen(),
       ),
       // Full-screen player slides up over everything, including the shell.
       GoRoute(
