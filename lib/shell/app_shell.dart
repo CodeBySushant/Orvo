@@ -17,15 +17,19 @@ class AppShell extends ConsumerWidget {
   final String location;
   final Widget child;
 
+  // REDESIGN: 4-tab navigation — Search promoted to the bottom bar
+  // (mockup: Home · Search · Library · Settings).
   int get _index {
+    if (location.startsWith('/search')) return 1;
     if (location.startsWith('/library') ||
         location.startsWith('/album') ||
         location.startsWith('/artist') ||
         location.startsWith('/playlist') ||
-        location.startsWith('/folder')) {
-      return 1;
+        location.startsWith('/folder') ||
+        location.startsWith('/genre')) {
+      return 2;
     }
-    if (location.startsWith('/settings')) return 2;
+    if (location.startsWith('/settings')) return 3;
     return 0;
   }
 
@@ -70,7 +74,8 @@ class AppShell extends ConsumerWidget {
             selectedIndex: _index,
             onDestinationSelected: (i) => switch (i) {
               0 => context.go('/home'),
-              1 => context.go('/library'),
+              1 => context.go('/search'),
+              2 => context.go('/library'),
               _ => context.go('/settings'),
             },
             destinations: const [
@@ -78,6 +83,11 @@ class AppShell extends ConsumerWidget {
                 icon: Icon(Icons.home_outlined),
                 selectedIcon: Icon(Icons.home_rounded),
                 label: 'Home',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.search_rounded),
+                selectedIcon: Icon(Icons.search_rounded),
+                label: 'Search',
               ),
               NavigationDestination(
                 icon: Icon(Icons.library_music_outlined),

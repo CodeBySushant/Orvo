@@ -6,30 +6,31 @@ import 'app_colors.dart';
 enum OrvoTheme { system, light, dark, amoled }
 
 abstract final class AppTheme {
+  // REDESIGN: midnight-navy dark theme with violet accent (Home mockup).
   static ThemeData get light => _base(
         brightness: Brightness.light,
-        primary: AppColors.garnet,
+        primary: AppColors.violet,
         scaffold: AppColors.porcelain,
         card: AppColors.porcelainCard,
-        raised: const Color(0xFFF1EBE8),
+        raised: const Color(0xFFEDECF6),
         onSurface: AppColors.inkOnLight,
       );
 
   static ThemeData get dark => _base(
         brightness: Brightness.dark,
-        primary: AppColors.garnetBright,
-        scaffold: AppColors.charcoal,
-        card: AppColors.charcoalCard,
-        raised: AppColors.charcoalRaised,
+        primary: AppColors.violetBright,
+        scaffold: AppColors.midnight,
+        card: AppColors.midnightCard,
+        raised: AppColors.midnightRaised,
         onSurface: AppColors.mistOnDark,
       );
 
   static ThemeData get amoled => _base(
         brightness: Brightness.dark,
-        primary: AppColors.garnetBright,
+        primary: AppColors.violetBright,
         scaffold: AppColors.trueBlack,
         card: AppColors.blackCard,
-        raised: const Color(0xFF1A1A1D),
+        raised: const Color(0xFF191C2B),
         onSurface: AppColors.mistOnDark,
       );
 
@@ -42,11 +43,11 @@ abstract final class AppTheme {
     required Color onSurface,
   }) {
     final scheme = ColorScheme.fromSeed(
-      seedColor: AppColors.garnet,
+      seedColor: AppColors.violet,
       brightness: brightness,
     ).copyWith(
       primary: primary,
-      secondary: AppColors.ember,
+      secondary: AppColors.orchid,
       surface: scaffold,
       surfaceContainer: card,
       surfaceContainerHigh: raised,

@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/home/home_screen.dart';
+import '../../features/home/song_collection_screen.dart';
 import '../../features/library/screens/album_detail_screen.dart';
 import '../../features/library/screens/artist_detail_screen.dart';
 import '../../features/equalizer/equalizer_screen.dart';
 import '../../features/library/screens/folder_detail_screen.dart';
+import '../../features/library/screens/genre_screens.dart';
 import '../../features/library/screens/library_screen.dart';
 import '../../features/player/screens/now_playing_screen.dart';
 import '../../features/playlists/screens/playlist_detail_screen.dart';
@@ -65,6 +67,24 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/search',
             pageBuilder: (context, state) =>
                 _fade(state, const SearchScreen()),
+          ),
+          // REDESIGN: Home "See All" targets + genre browsing.
+          GoRoute(
+            path: '/collection/:kind',
+            builder: (context, state) => SongCollectionScreen(
+              kind: state.pathParameters['kind'] ?? 'added',
+            ),
+          ),
+          GoRoute(
+            path: '/genres',
+            builder: (context, state) => const GenresScreen(),
+          ),
+          GoRoute(
+            path: '/genre/:id',
+            builder: (context, state) => GenreDetailScreen(
+              genreId: int.parse(state.pathParameters['id']!),
+              genreName: state.uri.queryParameters['name'] ?? 'Genre',
+            ),
           ),
         ],
       ),
