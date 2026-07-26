@@ -6,6 +6,7 @@ import '../features/equalizer/equalizer_provider.dart';
 import '../features/player/widgets/mini_player.dart';
 import '../features/player/data/playback_persistence.dart';
 import '../features/player/providers/audio_settings.dart';
+import '../features/player/providers/notification_tap.dart';
 import '../features/player/providers/player_providers.dart';
 import '../features/shortcuts/app_shortcuts.dart';
 import '../features/stats/play_stats.dart';
@@ -50,6 +51,8 @@ class AppShell extends ConsumerWidget {
     ref.watch(btAutoResumeProvider);
     // FEATURE (#15): register the launcher app shortcuts and their handler.
     ref.watch(appShortcutsProvider);
+    // FEATURE (#20): media-notification tap opens the Now Playing screen.
+    ref.watch(notificationTapProvider);
     // FIX (#2): apply persisted EQ settings as soon as playback starts,
     // instead of waiting for the user to open the equalizer screen.
     ref.watch(equalizerAutoAttachProvider);
