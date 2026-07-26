@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:on_audio_query_pluse/on_audio_query.dart' show OnAudioQuery;
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../core/utils/media_permissions.dart';
 import '../library/providers/library_providers.dart';
 
 enum _GateState { checking, granted, denied }
@@ -42,20 +44,53 @@ class _PermissionGateState extends ConsumerState<PermissionGate>
     }
   }
 
-  /// FIX (#3): only READ_MEDIA_AUDIO (Permission.audio) is REQUIRED to use
-  /// the app. READ_MEDIA_IMAGES (Permission.photos) is optional and only
-  /// improves album-art loading — denying it must never leave the user with
-  /// an empty library. On Android 12 and below, permission_handler maps both
-  /// to READ_EXTERNAL_STORAGE, so the same condition works on every API
-  /// level.
+  /// FIX (#18): the required permission is SDK-dependent —
+  /// READ_MEDIA_AUDIO (Permission.audio) on Android 13+,
+  /// READ_EXTERNAL_STORAGE (Permission.storage) on Android 12 and below.
+  /// permission_handler 11.x does NOT map Permission.audio to storage on
+  /// old Androids (the old FIX #3 comment claimed it did) — it just returns
+  /// denied instantly, so the system dialog never appeared on Android ≤ 12.
   Future<bool> _isGranted() async {
-    final audio = await Permission.audio.status;
-    debugPrint('[Orvo] gate status: audio=$audio');
-    return audio.isGranted;
+    final perm = await MediaPermissions.required();
+    final status = await perm.status;
+    debugPrint('[Orvo] gate status: $perm=$status '
+        '(sdk=${await MediaPermissions.sdkInt()})');
+    if (!status.isGranted) return false;
+
+    // FIX (#19): the system permission alone is NOT enough — on_audio_query
+    // gates every query on its OWN check (READ + WRITE external storage on
+    // Android ≤ 12; READ_MEDIA_AUDIO + READ_MEDIA_IMAGES on 13+). If we let
+    // the app through while that check fails, queries throw
+    // MissingPermissions and the fork's error path crashes natively with
+    // "Reply already submitted". So the plugin's status is the final word.
+    final pluginOk = await _pluginStatus();
+    debugPrint('[Orvo] plugin permissionsStatus: $pluginOk');
+    return pluginOk;
+  }
+
+  Future<bool> _pluginStatus() async {
+    try {
+      return await OnAudioQuery().permissionsStatus();
+    } catch (e) {
+      debugPrint('[Orvo] plugin permissionsStatus ERROR: $e');
+      return false;
+    }
   }
 
   Future<void> _check() async {
-    final granted = await _isGranted();
+    var granted = await _isGranted();
+
+    // System side granted but plugin side not (e.g. WRITE_EXTERNAL_STORAGE
+    // newly declared but never requested): top it up silently. Since the
+    // storage group is already approved, this auto-grants without a dialog.
+    if (!granted) {
+      final perm = await MediaPermissions.required();
+      if ((await perm.status).isGranted) {
+        await _ensurePluginPermission();
+        granted = await _pluginStatus();
+      }
+    }
+
     if (!mounted) return;
     if (granted) {
       _grant();
@@ -73,24 +108,42 @@ class _PermissionGateState extends ConsumerState<PermissionGate>
         return;
       }
 
-      // Ask for both in one system flow — photos purely for album art —
-      // but gate ONLY on audio.
-      final results =
-          await [Permission.audio, Permission.photos].request();
+      final requiredPerm = await MediaPermissions.required();
+      final imagesPerm = await MediaPermissions.optionalImages();
+
+      // Ask for everything relevant in one system flow — images purely for
+      // album art on Android 13+ — but gate ONLY on the required permission.
+      final results = await [
+        requiredPerm,
+        if (imagesPerm != null) imagesPerm,
+      ].request();
       debugPrint('[Orvo] gate request results: $results');
 
-      final audio = results[Permission.audio];
-      final granted = audio?.isGranted ?? false;
+      final status = results[requiredPerm];
+      final granted = status?.isGranted ?? false;
 
       if (!mounted) return;
       if (granted) {
-        _grant();
+        // FIX (#19): system permission granted — now make the plugin's own
+        // check pass too (it additionally needs WRITE_EXTERNAL_STORAGE on
+        // Android ≤ 12). Only open the gate once the plugin agrees, so its
+        // queries can never hit the natively-crashing MissingPermissions
+        // path.
+        await _ensurePluginPermission();
+        final pluginOk = await _pluginStatus();
+        if (!mounted) return;
+        if (pluginOk) {
+          _grant();
+        } else {
+          debugPrint('[Orvo] plugin still lacks permission after sync');
+          setState(() => _state = _GateState.denied);
+        }
         return;
       }
 
-      // Only audio being permanently denied blocks the app; the fix lives
-      // in system Settings.
-      final permanent = audio?.isPermanentlyDenied ?? false;
+      // Only the required permission being permanently denied blocks the
+      // app; the fix lives in system Settings.
+      final permanent = status?.isPermanentlyDenied ?? false;
       setState(() {
         _permanentlyDenied = permanent;
         _state = _GateState.denied;
@@ -100,6 +153,22 @@ class _PermissionGateState extends ConsumerState<PermissionGate>
       }
     } finally {
       _requesting = false;
+    }
+  }
+
+  /// FIX (#19): asks the plugin to request its OWN permission array
+  /// ([READ, WRITE] external storage on Android ≤ 12) so its internal check
+  /// passes. With the storage group already approved by the user, this
+  /// auto-grants without showing another dialog.
+  Future<void> _ensurePluginPermission() async {
+    try {
+      final query = OnAudioQuery();
+      if (!await query.permissionsStatus()) {
+        final requested = await query.permissionsRequest();
+        debugPrint('[Orvo] plugin permissionsRequest: $requested');
+      }
+    } catch (e) {
+      debugPrint('[Orvo] plugin permission sync ERROR: $e');
     }
   }
 

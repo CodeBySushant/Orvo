@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:on_audio_query_pluse/on_audio_query.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 import '../domain/entities.dart';
 import '../domain/library_repository.dart';
@@ -22,11 +21,15 @@ class LibraryRepositoryImpl implements LibraryRepository {
 
   Future<bool> _hasPermission() async {
     try {
-      final audio = await Permission.audio.status;
-      if (!audio.isGranted) {
-        debugPrint('[Orvo] repo status: audio=$audio');
-      }
-      return audio.isGranted;
+      // FIX (#19): mirror the plugin's OWN internal check (READ + WRITE
+      // external storage on Android ≤ 12; READ_MEDIA_AUDIO + IMAGES on 13+)
+      // instead of permission_handler's view of the world. Queries must
+      // never run while this is false — the fork's MissingPermissions error
+      // path double-replies on the platform channel and crashes the app
+      // natively ("Reply already submitted").
+      final granted = await _query.permissionsStatus();
+      if (!granted) debugPrint('[Orvo] repo: plugin permission not granted');
+      return granted;
     } catch (e) {
       debugPrint('[Orvo] repo permission ERROR: $e');
       return false;
