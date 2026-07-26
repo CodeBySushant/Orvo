@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/i18n/l10n.dart';
 import '../features/equalizer/equalizer_provider.dart';
 import '../features/player/widgets/mini_player.dart';
 import '../features/player/data/playback_persistence.dart';
@@ -73,6 +74,8 @@ class AppShell extends ConsumerWidget {
       }
     });
 
+    final t = ref.watch(l10nProvider);
+
     return Scaffold(
       body: child,
       bottomNavigationBar: Column(
@@ -87,26 +90,26 @@ class AppShell extends ConsumerWidget {
               2 => context.go('/library'),
               _ => context.go('/settings'),
             },
-            destinations: const [
+            destinations: [
               NavigationDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home_rounded),
-                label: 'Home',
+                icon: const Icon(Icons.home_outlined),
+                selectedIcon: const Icon(Icons.home_rounded),
+                label: t.home,
               ),
               NavigationDestination(
-                icon: Icon(Icons.search_rounded),
-                selectedIcon: Icon(Icons.search_rounded),
-                label: 'Search',
+                icon: const Icon(Icons.search_rounded),
+                selectedIcon: const Icon(Icons.search_rounded),
+                label: t.search,
               ),
               NavigationDestination(
-                icon: Icon(Icons.library_music_outlined),
-                selectedIcon: Icon(Icons.library_music_rounded),
-                label: 'Library',
+                icon: const Icon(Icons.library_music_outlined),
+                selectedIcon: const Icon(Icons.library_music_rounded),
+                label: t.library,
               ),
               NavigationDestination(
-                icon: Icon(Icons.settings_outlined),
-                selectedIcon: Icon(Icons.settings_rounded),
-                label: 'Settings',
+                icon: const Icon(Icons.settings_outlined),
+                selectedIcon: const Icon(Icons.settings_rounded),
+                label: t.settings,
               ),
             ],
           ),

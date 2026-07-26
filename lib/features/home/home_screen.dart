@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:on_audio_query_pluse/on_audio_query.dart' show ArtworkType;
 
+import '../../core/i18n/l10n.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/theme_provider.dart' show sharedPreferencesProvider;
 import '../../core/widgets/artwork.dart';
@@ -90,6 +91,7 @@ class _HomeBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(l10nProvider);
     final songs = ref.watch(songsProvider).valueOrNull ?? const <Song>[];
     final recentlyPlayed =
         ref.watch(recentlyPlayedProvider).valueOrNull ?? const <Song>[];
@@ -112,26 +114,26 @@ class _HomeBody extends ConsumerWidget {
       children: [
         const _Header(),
         _SectionTitle(
-          'Recently Played',
+          t.recentlyPlayed,
           onSeeAll: () => context.push('/collection/recent'),
         ),
         _RecentlyPlayedRow(songs: playedShelf),
         const SizedBox(height: 20),
         _SectionTitle(
-          'Favorite Playlists',
+          t.favoritePlaylists,
           onSeeAll: () => context.go('/library'),
         ),
         _PlaylistsRow(playlists: playlists),
         const SizedBox(height: 20),
         _SectionTitle(
-          'Recently Added',
+          t.recentlyAdded,
           onSeeAll: () => context.push('/collection/added'),
         ),
         _RecentlyAddedRow(songs: recentlyAdded),
         if (genres.isNotEmpty) ...[
           const SizedBox(height: 20),
           _SectionTitle(
-            'Browse by Genre',
+            t.browseByGenre,
             onSeeAll: () => context.push('/genres'),
           ),
           _GenreRow(genres: genres.take(8).toList(growable: false)),
@@ -148,11 +150,11 @@ class _HomeBody extends ConsumerWidget {
 class _Header extends ConsumerWidget {
   const _Header();
 
-  String _greeting() {
+  String _greeting(L10n t) {
     final hour = DateTime.now().hour;
-    if (hour < 12) return 'Good Morning';
-    if (hour < 17) return 'Good Afternoon';
-    return 'Good Evening';
+    if (hour < 12) return t.goodMorning;
+    if (hour < 17) return t.goodAfternoon;
+    return t.goodEvening;
   }
 
   Future<void> _editName(BuildContext context, WidgetRef ref) async {
@@ -161,22 +163,23 @@ class _Header extends ConsumerWidget {
     final name = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Your name'),
+        title: Text(ref.read(l10nProvider).yourName),
         content: TextField(
           controller: controller,
           autofocus: true,
           textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(hintText: 'How should Orvo greet you?'),
+          decoration:
+              InputDecoration(hintText: ref.read(l10nProvider).greetHint),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
+            child: Text(ref.read(l10nProvider).cancel),
           ),
           FilledButton(
             onPressed: () =>
                 Navigator.pop(dialogContext, controller.text),
-            child: const Text('Save'),
+            child: Text(ref.read(l10nProvider).save),
           ),
         ],
       ),
@@ -187,8 +190,9 @@ class _Header extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final t = ref.watch(l10nProvider);
     final name = ref.watch(userNameProvider);
-    final displayName = name.isEmpty ? 'Music Lover' : name;
+    final displayName = name.isEmpty ? t.musicLover : name;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 12, 18),
@@ -202,7 +206,7 @@ class _Header extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(_greeting(), style: theme.textTheme.bodyMedium),
+                  Text(_greeting(t), style: theme.textTheme.bodyMedium),
                   Text('$displayName 👋',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -641,6 +645,7 @@ class _LikedSongsCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(l10nProvider);
     final count = ref.watch(favoritesProvider).length;
     return Pressable(
       onTap: () => context.push('/collection/favorites'),
@@ -660,15 +665,15 @@ class _LikedSongsCard extends ConsumerWidget {
           children: [
             const Icon(Icons.favorite_rounded, color: Colors.white, size: 30),
             const Spacer(),
-            const Text('Liked Songs',
+            Text(t.likedSongs,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
+                style: const TextStyle(
                     color: Colors.white,
                     fontSize: 17,
                     fontWeight: FontWeight.w800)),
             const SizedBox(height: 2),
-            Text('$count Songs',
+            Text(t.nSongs(count),
                 style: TextStyle(
                     color: Colors.white.withOpacity(.85), fontSize: 12.5)),
           ],

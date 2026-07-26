@@ -4,6 +4,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/i18n/l10n.dart';
 import '../providers/player_providers.dart';
 
 /// Bottom sheet showing the play queue: drag to reorder, swipe to remove,
@@ -39,6 +40,7 @@ class QueueSheet extends ConsumerWidget {
     final currentIndex = ref.watch(queueIndexProvider);
     final handler = ref.read(audioHandlerProvider);
     final accent = theme.colorScheme.primary;
+    final t = ref.watch(l10nProvider);
 
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
@@ -66,14 +68,14 @@ class QueueSheet extends ConsumerWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Up next',
-                        style: TextStyle(
+                    Text(t.upNext,
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
                           letterSpacing: -.3,
                         )),
-                    Text('${queue.length} tracks',
+                    Text(t.nTracks(queue.length),
                         style: TextStyle(
                           color: Colors.white.withOpacity(.55),
                           fontSize: 12.5,
@@ -85,7 +87,7 @@ class QueueSheet extends ConsumerWidget {
               Expanded(
                 child: queue.isEmpty
                     ? Center(
-                        child: Text('Queue is empty',
+                        child: Text(t.queueEmpty,
                             style: TextStyle(
                                 color: Colors.white.withOpacity(.55),
                                 fontSize: 13)),

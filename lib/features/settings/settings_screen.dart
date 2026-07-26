@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/i18n/l10n.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/theme_provider.dart';
 import '../../core/widgets/artwork.dart';
@@ -15,17 +16,18 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final t = ref.watch(l10nProvider);
     final current = ref.watch(themeProvider);
     final songCount =
         ref.watch(songsProvider).valueOrNull?.length;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: Text(t.settings)),
       body: ListView(
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.only(bottom: 24),
         children: [
-          _SectionLabel('Appearance'),
+          _SectionLabel(t.appearance),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
@@ -50,20 +52,52 @@ class SettingsScreen extends ConsumerWidget {
             final dynamicOn = ref.watch(dynamicColorProvider);
             return SwitchListTile(
               secondary: const Icon(Icons.palette_outlined),
-              title: const Text('Material You'),
-              subtitle: Text('Use your wallpaper colors (Android 12+)',
+              title: Text(ref.watch(l10nProvider).materialYou),
+              subtitle: Text(ref.watch(l10nProvider).materialYouSub,
                   style: theme.textTheme.labelMedium),
               value: dynamicOn,
               onChanged: (v) =>
                   ref.read(dynamicColorProvider.notifier).set(v),
             );
           }),
+          // FEATURE (#24): language picker — switching applies instantly.
+          Consumer(builder: (context, ref, _) {
+            final t2 = ref.watch(l10nProvider);
+            final lang = ref.watch(languageProvider);
+            return ListTile(
+              leading: const Icon(Icons.language_rounded),
+              title: Text(t2.language),
+              subtitle:
+                  Text(lang.nativeName, style: theme.textTheme.labelMedium),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => showDialog<void>(
+                context: context,
+                builder: (dialogContext) => SimpleDialog(
+                  title: Text(t2.language),
+                  children: [
+                    for (final option in AppLanguage.values)
+                      RadioListTile<AppLanguage>(
+                        value: option,
+                        groupValue: lang,
+                        title: Text(option.nativeName),
+                        onChanged: (v) {
+                          if (v != null) {
+                            ref.read(languageProvider.notifier).set(v);
+                          }
+                          Navigator.pop(dialogContext);
+                        },
+                      ),
+                  ],
+                ),
+              ),
+            );
+          }),
           const SizedBox(height: 24),
-          _SectionLabel('Audio'),
+          _SectionLabel(t.audio),
           ListTile(
             leading: const Icon(Icons.equalizer_rounded),
-            title: const Text('Equalizer'),
-            subtitle: Text('5-band EQ, presets, bass boost',
+            title: Text(t.equalizer),
+            subtitle: Text(t.equalizerSub,
                 style: theme.textTheme.labelMedium),
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () => context.push('/equalizer'),
@@ -72,8 +106,8 @@ class SettingsScreen extends ConsumerWidget {
             final smooth = ref.watch(smoothTransitionsProvider);
             return SwitchListTile(
               secondary: const Icon(Icons.waves_rounded),
-              title: const Text('Smooth transitions'),
-              subtitle: Text('Gentle fade on play, pause and skip',
+              title: Text(ref.watch(l10nProvider).smoothTransitions),
+              subtitle: Text(ref.watch(l10nProvider).smoothTransitionsSub,
                   style: theme.textTheme.labelMedium),
               value: smooth,
               onChanged: (v) =>
@@ -85,9 +119,8 @@ class SettingsScreen extends ConsumerWidget {
             final btResume = ref.watch(btAutoResumeProvider);
             return SwitchListTile(
               secondary: const Icon(Icons.bluetooth_audio_rounded),
-              title: const Text('Resume on Bluetooth'),
-              subtitle: Text(
-                  'Auto-play when your headphones or car connect',
+              title: Text(ref.watch(l10nProvider).resumeOnBluetooth),
+              subtitle: Text(ref.watch(l10nProvider).resumeOnBluetoothSub,
                   style: theme.textTheme.labelMedium),
               value: btResume,
               onChanged: (v) =>
@@ -99,20 +132,21 @@ class SettingsScreen extends ConsumerWidget {
             final seconds = ref.watch(crossfadeProvider);
             return ListTile(
               leading: const Icon(Icons.compare_arrows_rounded),
-              title: const Text('Crossfade'),
+              title: Text(ref.watch(l10nProvider).crossfade),
               subtitle: Text(
                 seconds == 0
                     ? 'Off — tracks change instantly'
                     : 'Tracks blend over $seconds seconds',
                 style: theme.textTheme.labelMedium,
               ),
-              trailing: Text(seconds == 0 ? 'Off' : '${seconds}s',
+              trailing: Text(
+                  seconds == 0 ? ref.watch(l10nProvider).off : '${seconds}s',
                   style: theme.textTheme.labelLarge),
               onTap: () async {
                 final picked = await showDialog<int>(
                   context: context,
                   builder: (dialogContext) => SimpleDialog(
-                    title: const Text('Crossfade'),
+                    title: Text(ref.watch(l10nProvider).crossfade),
                     children: [
                       for (final option in CrossfadeNotifier.options)
                         RadioListTile<int>(
@@ -133,12 +167,12 @@ class SettingsScreen extends ConsumerWidget {
             );
           }),
           const SizedBox(height: 24),
-          _SectionLabel('Library'),
+          _SectionLabel(t.library),
           ListTile(
             leading: const Icon(Icons.refresh_rounded),
-            title: const Text('Rescan library'),
+            title: Text(t.rescanLibrary),
             subtitle: Text(
-              songCount != null ? '$songCount songs indexed' : 'Scanning…',
+              songCount != null ? t.nSongsIndexed(songCount) : t.scanning,
               style: theme.textTheme.labelMedium,
             ),
             onTap: () {
@@ -147,7 +181,7 @@ class SettingsScreen extends ConsumerWidget {
               ref.invalidate(albumsProvider);
               ref.invalidate(artistsProvider);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Rescanning your library')),
+                SnackBar(content: Text(t.rescanning)),
               );
             },
           ),
@@ -158,7 +192,7 @@ class SettingsScreen extends ConsumerWidget {
             final folder = ref.watch(lyricsFolderProvider);
             return ListTile(
               leading: const Icon(Icons.lyrics_rounded),
-              title: const Text('Lyrics folder'),
+              title: Text(ref.watch(l10nProvider).lyricsFolder),
               subtitle: Text(
                 folder == null
                     ? 'Pick the folder holding your .lrc files'
@@ -194,10 +228,9 @@ class SettingsScreen extends ConsumerWidget {
             final online = ref.watch(onlineLyricsProvider);
             return SwitchListTile(
               secondary: const Icon(Icons.travel_explore_rounded),
-              title: const Text('Online lyrics'),
+              title: Text(ref.watch(l10nProvider).onlineLyrics),
               subtitle: Text(
-                'Fetch missing lyrics from LRCLIB and save them for offline use. '
-                'Sends only song title, artist and duration.',
+                ref.watch(l10nProvider).onlineLyricsSub,
                 style: theme.textTheme.labelMedium,
               ),
               value: online,
@@ -206,16 +239,16 @@ class SettingsScreen extends ConsumerWidget {
             );
           }),
           const SizedBox(height: 24),
-          _SectionLabel('About'),
+          _SectionLabel(t.about),
           const ListTile(
             leading: Icon(Icons.info_outline_rounded),
             title: Text('Orvo'),
             subtitle: Text('Version 0.1.0 · Phase 1 core'),
           ),
-          const ListTile(
-            leading: Icon(Icons.lock_outline_rounded),
-            title: Text('Privacy'),
-            subtitle: Text(
+          ListTile(
+            leading: const Icon(Icons.lock_outline_rounded),
+            title: Text(t.privacy),
+            subtitle: const Text(
                 'Fully offline by default. Your music and listening data never '
                 'leave this device. If Online lyrics is on, only song titles, '
                 'artists and durations are sent to LRCLIB.'),
@@ -253,10 +286,11 @@ class _ThemeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final t = ProviderScope.containerOf(context).read(l10nProvider);
     final (label, swatch) = switch (option) {
-      OrvoTheme.system => ('Auto', theme.colorScheme.surfaceContainerHigh),
-      OrvoTheme.light => ('Light', const Color(0xFFFAF7F5)),
-      OrvoTheme.dark => ('Dark', const Color(0xFF1F181B)),
+      OrvoTheme.system => (t.themeAuto, theme.colorScheme.surfaceContainerHigh),
+      OrvoTheme.light => (t.themeLight, const Color(0xFFFAF7F5)),
+      OrvoTheme.dark => (t.themeDark, const Color(0xFF1F181B)),
       OrvoTheme.amoled => ('AMOLED', Colors.black),
     };
     return InkWell(

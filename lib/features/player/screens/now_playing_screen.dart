@@ -7,6 +7,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:on_audio_query_pluse/on_audio_query.dart' show ArtworkType;
 
+import '../../../core/i18n/l10n.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/artwork.dart';
 import '../../favorites/favorites_provider.dart';
@@ -391,7 +392,8 @@ class _InlineLyricsState extends ConsumerState<_InlineLyrics> {
             padding: const EdgeInsets.fromLTRB(30, 2, 14, 0),
             child: Row(
               children: [
-                Text('LYRICS',
+                Text(
+                    ref.read(l10nProvider).lyricsCaps,
                     style: TextStyle(
                       color: Colors.white.withOpacity(.6),
                       fontSize: 11,
@@ -416,16 +418,18 @@ class _InlineLyricsState extends ConsumerState<_InlineLyrics> {
                     .animate(onPlay: (c) => c.repeat(reverse: true))
                     .fade(begin: .3, end: 1, duration: 600.ms),
               ),
-              error: (e, _) => _inlineMessage('Could not read lyrics'),
+              error: (e, _) =>
+                  _inlineMessage(ref.read(l10nProvider).couldNotReadLyrics),
               data: (result) {
                 final lyrics = result.lyrics;
                 if (lyrics.isEmpty) {
                   final onlineOn = ref.watch(onlineLyricsProvider);
+                  final t = ref.read(l10nProvider);
                   return _inlineMessage(!onlineOn
-                      ? 'No lyrics in this file.\nTurn on Online lyrics in Settings.'
+                      ? t.noLyricsInFile
                       : result.lookupFailed
-                          ? "Couldn't reach the lyrics service.\nCheck your internet connection."
-                          : 'No lyrics found for this track.');
+                          ? t.lyricsOffline
+                          : t.noLyricsFound);
                 }
                 if (lyrics.isSynced) return _synced(lyrics.synced);
                 return SingleChildScrollView(
@@ -711,7 +715,7 @@ class _UpNextHandle extends StatelessWidget {
                 .moveY(begin: 2, end: -2, duration: 900.ms,
                     curve: Curves.easeInOut),
             Text(
-              'UP NEXT',
+              ProviderScope.containerOf(context).read(l10nProvider).upNextCaps,
               style: TextStyle(
                 color: color,
                 fontSize: 11,
@@ -738,13 +742,19 @@ class _NothingPlaying extends StatelessWidget {
           Icon(Icons.music_note_rounded,
               size: 48, color: Colors.white.withOpacity(.4)),
           const SizedBox(height: 12),
-          Text('Nothing playing',
+          Text(
+              ProviderScope.containerOf(context)
+                  .read(l10nProvider)
+                  .nothingPlaying,
               style: TextStyle(
                   color: Colors.white.withOpacity(.7),
                   fontSize: 16,
                   fontWeight: FontWeight.w600)),
           const SizedBox(height: 4),
-          Text('Pick a song from your library',
+          Text(
+              ProviderScope.containerOf(context)
+                  .read(l10nProvider)
+                  .pickASong,
               style: TextStyle(
                   color: Colors.white.withOpacity(.45), fontSize: 13)),
         ],

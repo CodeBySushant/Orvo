@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:on_audio_query_pluse/on_audio_query.dart' show ArtworkType;
 
+import '../../core/i18n/l10n.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/theme_provider.dart' show sharedPreferencesProvider;
 import '../../core/widgets/artwork.dart';
@@ -98,6 +99,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final t = ref.watch(l10nProvider);
     final songs = ref.watch(songsProvider).valueOrNull ?? const <Song>[];
     final albums = ref.watch(albumsProvider).valueOrNull ?? const <Album>[];
     final artists =
@@ -160,7 +162,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-              child: Text('Search', style: theme.textTheme.headlineMedium),
+              child: Text(t.search, style: theme.textTheme.headlineMedium),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
@@ -252,7 +254,9 @@ class _SearchField extends StatelessWidget {
               textInputAction: TextInputAction.search,
               style: theme.textTheme.bodyLarge,
               decoration: InputDecoration(
-                hintText: 'Songs, artists, albums…',
+                hintText: ProviderScope.containerOf(context)
+                    .read(l10nProvider)
+                    .searchHint,
                 hintStyle: theme.textTheme.bodyLarge!.copyWith(
                     color: theme.colorScheme.onSurface.withOpacity(.4)),
                 border: InputBorder.none,
@@ -310,12 +314,18 @@ class _IdleView extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('RECENT',
+                Text(
+                    ProviderScope.containerOf(context)
+                        .read(l10nProvider)
+                        .recent,
                     style: theme.textTheme.labelSmall!
                         .copyWith(letterSpacing: 1.4)),
                 GestureDetector(
                   onTap: onClearRecents,
-                  child: Text('Clear',
+                  child: Text(
+                      ProviderScope.containerOf(context)
+                          .read(l10nProvider)
+                          .clear,
                       style: theme.textTheme.labelMedium!.copyWith(
                           color: theme.colorScheme.primary,
                           fontWeight: FontWeight.w700)),
@@ -351,7 +361,8 @@ class _IdleView extends StatelessWidget {
         ],
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 26, 20, 12),
-          child: Text('BROWSE',
+          child: Text(
+              ProviderScope.containerOf(context).read(l10nProvider).browse,
               style:
                   theme.textTheme.labelSmall!.copyWith(letterSpacing: 1.4)),
         ),
@@ -366,22 +377,34 @@ class _IdleView extends StatelessWidget {
             childAspectRatio: 1.9,
             children: [
               _BrowseTile(
-                label: 'Recently added',
+                label: ProviderScope.containerOf(context)
+                    .read(l10nProvider)
+                    .recentlyAdded,
+                seed: 'Recently added',
                 icon: Icons.new_releases_rounded,
                 onTap: () => context.push('/collection/added'),
               ),
               _BrowseTile(
-                label: 'Recently played',
+                label: ProviderScope.containerOf(context)
+                    .read(l10nProvider)
+                    .recentlyPlayed,
+                seed: 'Recently played',
                 icon: Icons.history_rounded,
                 onTap: () => context.push('/collection/recent'),
               ),
               _BrowseTile(
-                label: 'Genres',
+                label: ProviderScope.containerOf(context)
+                    .read(l10nProvider)
+                    .genres,
+                seed: 'Genres',
                 icon: Icons.category_rounded,
                 onTap: () => context.push('/genres'),
               ),
               _BrowseTile(
-                label: 'Shuffle all',
+                label: ProviderScope.containerOf(context)
+                    .read(l10nProvider)
+                    .shuffleAll,
+                seed: 'Shuffle all',
                 icon: Icons.shuffle_rounded,
                 onTap: onShuffleAll,
               ),
@@ -397,17 +420,19 @@ class _IdleView extends StatelessWidget {
 class _BrowseTile extends StatelessWidget {
   const _BrowseTile({
     required this.label,
+    required this.seed,
     required this.icon,
     required this.onTap,
   });
 
   final String label;
+  final String seed; // stable gradient seed regardless of language
   final IconData icon;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final base = AppColors.tileColorFor(label);
+    final base = AppColors.tileColorFor(seed);
     return Pressable(
       onTap: onTap,
       child: Container(
@@ -482,7 +507,7 @@ class _ResultsView extends ConsumerWidget {
       padding: const EdgeInsets.only(bottom: 24),
       children: [
         if (topSong != null) ...[
-          const _SectionHeader('TOP RESULT'),
+          _SectionHeader(ProviderScope.containerOf(context).read(l10nProvider).topResult),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: _TopResultCard(
@@ -493,12 +518,12 @@ class _ResultsView extends ConsumerWidget {
           ).animate().fadeIn(duration: 220.ms).moveY(begin: 8, end: 0),
         ],
         if (songHits.isNotEmpty) ...[
-          _SectionHeader('SONGS', count: songHits.length),
+          _SectionHeader(ProviderScope.containerOf(context).read(l10nProvider).songsCaps, count: songHits.length),
           for (var i = 0; i < songHits.length; i++)
             SongTile(song: songHits[i], contextSongs: songHits, index: i),
         ],
         if (albumHits.isNotEmpty) ...[
-          _SectionHeader('ALBUMS', count: albumHits.length),
+          _SectionHeader(ProviderScope.containerOf(context).read(l10nProvider).albumsCaps, count: albumHits.length),
           SizedBox(
             height: 172,
             child: ListView.separated(
@@ -545,7 +570,7 @@ class _ResultsView extends ConsumerWidget {
           ),
         ],
         if (artistHits.isNotEmpty) ...[
-          _SectionHeader('ARTISTS', count: artistHits.length),
+          _SectionHeader(ProviderScope.containerOf(context).read(l10nProvider).artistsCaps, count: artistHits.length),
           SizedBox(
             height: 132,
             child: ListView.separated(
@@ -608,7 +633,7 @@ class _ResultsView extends ConsumerWidget {
           ),
         ],
         if (playlistHits.isNotEmpty) ...[
-          _SectionHeader('PLAYLISTS', count: playlistHits.length),
+          _SectionHeader(ProviderScope.containerOf(context).read(l10nProvider).playlistsCaps, count: playlistHits.length),
           for (final playlist in playlistHits)
             ListTile(
               onTap: () {
@@ -618,12 +643,15 @@ class _ResultsView extends ConsumerWidget {
               leading: _IconBadge(icon: Icons.queue_music_rounded),
               title: Text(playlist.name,
                   maxLines: 1, overflow: TextOverflow.ellipsis),
-              subtitle: Text('${playlist.songCount} songs',
+              subtitle: Text(
+                  ProviderScope.containerOf(context)
+                      .read(l10nProvider)
+                      .nSongs(playlist.songCount),
                   style: theme.textTheme.labelMedium),
             ),
         ],
         if (folderHits.isNotEmpty) ...[
-          _SectionHeader('FOLDERS', count: folderHits.length),
+          _SectionHeader(ProviderScope.containerOf(context).read(l10nProvider).foldersCaps, count: folderHits.length),
           for (final folder in folderHits)
             ListTile(
               onTap: () {
@@ -688,7 +716,10 @@ class _TopResultCard extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('SONG',
+                  Text(
+                      ProviderScope.containerOf(context)
+                          .read(l10nProvider)
+                          .songBadge,
                       style: theme.textTheme.labelSmall!.copyWith(
                           letterSpacing: 1.4,
                           color: theme.colorScheme.primary)),
@@ -798,10 +829,16 @@ class _EmptyResults extends StatelessWidget {
                 size: 44,
                 color: theme.colorScheme.onSurface.withOpacity(.3)),
             const SizedBox(height: 14),
-            Text('No results for “$query”',
+            Text(
+                ProviderScope.containerOf(context)
+                    .read(l10nProvider)
+                    .noResultsFor(query),
                 style: theme.textTheme.titleSmall),
             const SizedBox(height: 6),
-            Text('Check the spelling or try the artist\nor album name instead.',
+            Text(
+                ProviderScope.containerOf(context)
+                    .read(l10nProvider)
+                    .checkSpelling,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodySmall),
           ],
