@@ -5,12 +5,14 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:on_audio_query_pluse/on_audio_query.dart' show ArtworkType;
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/artwork.dart';
 import '../../favorites/favorites_provider.dart';
-import '../../lyrics/lyrics_sheet.dart';
+import '../../lyrics/lyrics_parser.dart';
+import '../../lyrics/lyrics_provider.dart';
 import '../providers/player_providers.dart';
 import '../providers/sleep_timer.dart';
 import '../widgets/audio_options_sheet.dart';
@@ -29,8 +31,9 @@ class NowPlayingScreen extends ConsumerStatefulWidget {
 
 class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     with SingleTickerProviderStateMixin {
-  PageController? _pageController;
-  bool _syncingPage = false;
+  // REDESIGN: horizontal swipe on the artwork now opens lyrics inline
+  // (transparent, over the blurred background) instead of changing tracks.
+  bool _showLyrics = false;
 
   late final AnimationController _heartController = AnimationController(
     vsync: this,
@@ -40,7 +43,6 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   @override
   void dispose() {
     _heartController.dispose();
-    _pageController?.dispose();
     super.dispose();
   }
 
@@ -56,32 +58,12 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   @override
   Widget build(BuildContext context) {
     final item = ref.watch(currentMediaItemProvider).valueOrNull;
-    final queue = ref.watch(queueProvider).valueOrNull ?? const <MediaItem>[];
-    final queueIndex = ref.watch(queueIndexProvider) ?? 0;
     final songId = item?.extras?['songId'] as int?;
 
     final palette = songId == null
         ? NowPlayingPalette.fallback
         : ref.watch(paletteProvider(songId)).valueOrNull ??
             NowPlayingPalette.fallback;
-
-    _pageController ??= PageController(initialPage: queueIndex);
-
-    // Keep the artwork pager in sync when the track changes elsewhere
-    // (notification buttons, song end, queue taps).
-    ref.listen<int?>(queueIndexProvider, (prev, next) {
-      final controller = _pageController;
-      if (next == null || controller == null || !controller.hasClients) return;
-      if (controller.page?.round() == next) return;
-      _syncingPage = true;
-      controller
-          .animateToPage(
-            next,
-            duration: const Duration(milliseconds: 320),
-            curve: Curves.easeOutCubic,
-          )
-          .whenComplete(() => _syncingPage = false);
-    });
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -105,32 +87,45 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                           onQueue: () => QueueSheet.show(context),
                         ),
                         Expanded(
-                          child: _ArtworkPager(
-                            controller: _pageController!,
-                            queue: queue,
-                            heartController: _heartController,
-                            onDoubleTap: () => _onArtworkDoubleTap(songId),
-                            onPageChanged: (page) {
-                              if (_syncingPage) return;
-                              if (page != ref.read(queueIndexProvider)) {
-                                ref
-                                    .read(audioHandlerProvider)
-                                    .skipToQueueItem(page);
-                              }
-                            },
+                          // REDESIGN: swipe the artwork sideways to reveal
+                          // lyrics inline (transparent over the blurred
+                          // background); swipe again or tap ✕ to come back.
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 260),
+                            switchInCurve: Curves.easeOutCubic,
+                            switchOutCurve: Curves.easeInCubic,
+                            child: _showLyrics
+                                ? _InlineLyrics(
+                                    key: const ValueKey('lyrics'),
+                                    item: item,
+                                    accent: palette.accent,
+                                    onClose: () =>
+                                        setState(() => _showLyrics = false),
+                                  )
+                                : _ArtworkView(
+                                    key: const ValueKey('artwork'),
+                                    item: item,
+                                    heartController: _heartController,
+                                    onDoubleTap: () =>
+                                        _onArtworkDoubleTap(songId),
+                                    onOpenLyrics: () =>
+                                        setState(() => _showLyrics = true),
+                                  ),
                           ),
                         ),
                         _TitleRow(item: item, songId: songId,
                             accent: palette.accent),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 8),
                         SeekBar(
                             accent: palette.accent,
                             onSurface: Colors.white),
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 12),
                         _Controls(accent: palette.accent),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 8),
                         _FeatureRow(accent: palette.accent),
-                        const SizedBox(height: 16),
+                        // REDESIGN: extra breathing room lifts everything a
+                        // touch above the Up Next handle / bottom edge.
+                        const SizedBox(height: 26),
                       ],
                     ),
             ),
@@ -234,64 +229,60 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-class _ArtworkPager extends StatelessWidget {
-  const _ArtworkPager({
-    required this.controller,
-    required this.queue,
+/// REDESIGN: single artwork card. Double-tap favorites (heart burst),
+/// horizontal swipe opens the inline lyrics view. Track skipping stays on
+/// the previous / next buttons.
+class _ArtworkView extends StatelessWidget {
+  const _ArtworkView({
+    super.key,
+    required this.item,
     required this.heartController,
     required this.onDoubleTap,
-    required this.onPageChanged,
+    required this.onOpenLyrics,
   });
 
-  final PageController controller;
-  final List<MediaItem> queue;
+  final MediaItem item;
   final AnimationController heartController;
   final VoidCallback onDoubleTap;
-  final ValueChanged<int> onPageChanged;
+  final VoidCallback onOpenLyrics;
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       alignment: Alignment.center,
       children: [
-        PageView.builder(
-          controller: controller,
-          onPageChanged: onPageChanged,
-          physics: const BouncingScrollPhysics(),
-          itemCount: queue.length,
-          itemBuilder: (context, i) {
-            final item = queue[i];
-            return Center(
-              child: GestureDetector(
-                onDoubleTap: onDoubleTap,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 34),
-                  child: AspectRatio(
-                    aspectRatio: 1,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(26),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(.5),
-                            blurRadius: 40,
-                            offset: const Offset(0, 18),
-                          ),
-                        ],
+        Center(
+          child: GestureDetector(
+            onDoubleTap: onDoubleTap,
+            onHorizontalDragEnd: (details) {
+              if ((details.primaryVelocity ?? 0).abs() > 250) onOpenLyrics();
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 34),
+              child: AspectRatio(
+                aspectRatio: 1,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(26),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(.5),
+                        blurRadius: 40,
+                        offset: const Offset(0, 18),
                       ),
-                      child: Artwork(
-                        id: item.extras?['songId'] as int? ?? -1,
-                        type: ArtworkType.AUDIO,
-                        fallbackText: item.title,
-                        radius: 26,
-                        queryScale: 800,
-                      ),
-                    ),
+                    ],
+                  ),
+                  child: Artwork(
+                    id: item.extras?['songId'] as int? ?? -1,
+                    type: ArtworkType.AUDIO,
+                    fallbackText: item.title,
+                    radius: 26,
+                    queryScale: 800,
                   ),
                 ),
               ),
-            );
-          },
+            ),
+          ),
         ),
         // Heart burst on double-tap.
         IgnorePointer(
@@ -318,6 +309,202 @@ class _ArtworkPager extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+/// REDESIGN: lyrics shown inline where the artwork was — fully transparent,
+/// floating over the blurred background. Synced lyrics auto-scroll with the
+/// active line in the accent color; tap a line to seek. Swipe sideways or
+/// tap ✕ to return to the artwork.
+class _InlineLyrics extends ConsumerStatefulWidget {
+  const _InlineLyrics({
+    super.key,
+    required this.item,
+    required this.accent,
+    required this.onClose,
+  });
+
+  final MediaItem item;
+  final Color accent;
+  final VoidCallback onClose;
+
+  @override
+  ConsumerState<_InlineLyrics> createState() => _InlineLyricsState();
+}
+
+class _InlineLyricsState extends ConsumerState<_InlineLyrics> {
+  static const _lineExtent = 46.0;
+  final _controller = ScrollController();
+  int _lastIndex = -1;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  int _indexFor(List<LyricLine> lines, Duration position) {
+    var index = 0;
+    for (var i = 0; i < lines.length; i++) {
+      if (lines[i].time <= position) {
+        index = i;
+      } else {
+        break;
+      }
+    }
+    return index;
+  }
+
+  void _autoScroll(int index, double viewport) {
+    if (!_controller.hasClients || index == _lastIndex) return;
+    _lastIndex = index;
+    final target = (index * _lineExtent) - viewport / 2 + _lineExtent / 2;
+    _controller.animateTo(
+      target.clamp(0.0, _controller.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final item = widget.item;
+    final request = LyricsRequest(
+      songId: item.extras?['songId'] as int? ?? 0,
+      path: item.extras?['path'] as String? ?? '',
+      title: item.title,
+      artist: item.artist,
+      album: item.album,
+      durationSec: item.duration?.inSeconds,
+    );
+    final lyricsAsync = ref.watch(lyricsProvider(request));
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onHorizontalDragEnd: (details) {
+        if ((details.primaryVelocity ?? 0).abs() > 250) widget.onClose();
+      },
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(30, 2, 14, 0),
+            child: Row(
+              children: [
+                Text('LYRICS',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(.6),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.6,
+                    )),
+                const Spacer(),
+                IconButton(
+                  tooltip: 'Back to artwork',
+                  onPressed: widget.onClose,
+                  icon: Icon(Icons.close_rounded,
+                      size: 22, color: Colors.white.withOpacity(.7)),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: lyricsAsync.when(
+              loading: () => Center(
+                child: Icon(Icons.graphic_eq_rounded,
+                        size: 34, color: Colors.white.withOpacity(.7))
+                    .animate(onPlay: (c) => c.repeat(reverse: true))
+                    .fade(begin: .3, end: 1, duration: 600.ms),
+              ),
+              error: (e, _) => _inlineMessage('Could not read lyrics'),
+              data: (result) {
+                final lyrics = result.lyrics;
+                if (lyrics.isEmpty) {
+                  final onlineOn = ref.watch(onlineLyricsProvider);
+                  return _inlineMessage(!onlineOn
+                      ? 'No lyrics in this file.\nTurn on Online lyrics in Settings.'
+                      : result.lookupFailed
+                          ? "Couldn't reach the lyrics service.\nCheck your internet connection."
+                          : 'No lyrics found for this track.');
+                }
+                if (lyrics.isSynced) return _synced(lyrics.synced);
+                return SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(30, 4, 30, 24),
+                  child: Text(
+                    lyrics.unsynced!,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(.9),
+                      fontSize: 17,
+                      height: 1.8,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _inlineMessage(String text) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(30),
+          child: Text(text,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  color: Colors.white.withOpacity(.55),
+                  fontSize: 13.5,
+                  height: 1.5)),
+        ),
+      );
+
+  Widget _synced(List<LyricLine> lines) {
+    final position =
+        ref.watch(positionProvider).valueOrNull ?? Duration.zero;
+    final current = _indexFor(lines, position);
+
+    return LayoutBuilder(builder: (context, constraints) {
+      WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _autoScroll(current, constraints.maxHeight));
+      return ListView.builder(
+        controller: _controller,
+        physics: const BouncingScrollPhysics(),
+        itemExtent: _lineExtent,
+        padding: EdgeInsets.symmetric(
+          vertical: constraints.maxHeight / 2 - _lineExtent / 2,
+          horizontal: 30,
+        ),
+        itemCount: lines.length,
+        itemBuilder: (context, i) {
+          final active = i == current;
+          final line = lines[i];
+          return InkWell(
+            onTap: () => ref.read(audioHandlerProvider).seek(line.time),
+            borderRadius: BorderRadius.circular(10),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 220),
+                style: TextStyle(
+                  fontSize: active ? 19 : 15.5,
+                  fontWeight: active ? FontWeight.w800 : FontWeight.w500,
+                  color: active
+                      ? widget.accent
+                      : Colors.white.withOpacity(.45),
+                ),
+                child: Text(
+                  line.text.isEmpty ? '\u00b7 \u00b7 \u00b7' : line.text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    });
   }
 }
 
@@ -372,7 +559,15 @@ class _TitleRow extends ConsumerWidget {
               ],
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 4),
+          // REDESIGN: equalizer lives beside the favorites heart.
+          IconButton(
+            tooltip: 'Equalizer',
+            onPressed: () => context.push('/equalizer'),
+            iconSize: 24,
+            icon: Icon(Icons.equalizer_rounded,
+                color: Colors.white.withOpacity(.75)),
+          ),
           IconButton(
             onPressed: songId == null
                 ? null
@@ -484,11 +679,8 @@ class _FeatureRow extends ConsumerWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          IconButton(
-            tooltip: 'Lyrics',
-            onPressed: () => LyricsSheet.show(context),
-            icon: Icon(Icons.lyrics_outlined, size: 22, color: inactive),
-          ),
+          // REDESIGN: lyrics icon removed — swipe the artwork instead.
+          const SizedBox(width: 48),
           // REDESIGN: "Up Next" handle — tap or swipe up to open the queue.
           _UpNextHandle(onOpen: () => QueueSheet.show(context)),
           IconButton(
