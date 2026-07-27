@@ -4,6 +4,7 @@ import 'package:on_audio_query_pluse/on_audio_query.dart' show ArtworkType;
 
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/artwork.dart';
+import '../../../core/widgets/playing_indicator.dart';
 import '../../favorites/favorites_provider.dart';
 import '../../player/providers/player_providers.dart';
 import '../../playlists/widgets/add_to_playlist_sheet.dart';
@@ -31,6 +32,8 @@ class SongTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isCurrent = ref.watch(currentSongIdProvider) == song.id;
+    // REDESIGN v3.6: equalizer bars animate only while actually playing.
+    final isPlaying = isCurrent && ref.watch(isPlayingProvider);
     final isFavorite = ref.watch(favoritesProvider).contains(song.id);
     final accent = theme.colorScheme.primary;
 
@@ -44,7 +47,8 @@ class SongTile extends ConsumerWidget {
               width: 42,
               child: Center(
                 child: isCurrent
-                    ? Icon(Icons.graphic_eq_rounded, color: accent, size: 20)
+                    ? PlayingIndicator(
+                        color: accent, size: 20, animating: isPlaying)
                     : Text('$leadingNumber',
                         style: theme.textTheme.labelMedium),
               ),
@@ -68,8 +72,10 @@ class SongTile extends ConsumerWidget {
                       color: Colors.black45,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(Icons.graphic_eq_rounded,
-                        color: accent, size: 22),
+                    child: Center(
+                      child: PlayingIndicator(
+                          color: accent, size: 22, animating: isPlaying),
+                    ),
                   ),
               ],
             ),

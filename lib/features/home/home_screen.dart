@@ -7,6 +7,7 @@ import 'package:on_audio_query_pluse/on_audio_query.dart' show ArtworkType;
 import '../../core/i18n/l10n.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/artwork.dart';
+import '../../core/widgets/playing_indicator.dart';
 import '../../core/widgets/pressable.dart';
 import '../library/domain/entities.dart';
 import '../library/providers/genre_providers.dart';
@@ -429,6 +430,7 @@ class _HomeSongTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isCurrent = ref.watch(currentSongIdProvider) == song.id;
+    final isPlaying = isCurrent && ref.watch(isPlayingProvider);
     final accent = theme.colorScheme.primary;
 
     return Pressable(
@@ -457,8 +459,10 @@ class _HomeSongTile extends ConsumerWidget {
                       color: Colors.black45,
                       borderRadius: BorderRadius.circular(15),
                     ),
-                    child:
-                        Icon(Icons.graphic_eq_rounded, color: accent, size: 24),
+                    child: Center(
+                      child: PlayingIndicator(
+                          color: accent, size: 24, animating: isPlaying),
+                    ),
                   ),
               ],
             ),

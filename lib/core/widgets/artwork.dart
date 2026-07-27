@@ -77,7 +77,7 @@ class Artwork extends StatelessWidget {
                 filterQuality: FilterQuality.medium,
               );
             }
-            return _Placeholder(text: fallbackText);
+            return _Placeholder(text: fallbackText, type: type);
           },
         ),
       ),
@@ -100,8 +100,9 @@ class Artwork extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _Placeholder extends StatelessWidget {
-  const _Placeholder({required this.text});
+  const _Placeholder({required this.text, required this.type});
   final String text; // ignored visually — see note above
+  final ArtworkType type;
 
   static const _bgGradient = LinearGradient(
     begin: Alignment.topLeft,
@@ -111,13 +112,33 @@ class _Placeholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(gradient: _bgGradient),
-      child: const CustomPaint(
-        painter: _VinylPainter(),
-        size: Size.infinite,
-      ),
-    );
+    // REDESIGN v3.6: two standard covers.
+    //  - Albums keep the vinyl record (Recommend Albums / album grid).
+    //  - Songs & artists get the clean minimal tile from the reference:
+    //    a soft translucent square with a muted music-note glyph.
+    if (type == ArtworkType.ALBUM) {
+      return Container(
+        decoration: const BoxDecoration(gradient: _bgGradient),
+        child: const CustomPaint(
+          painter: _VinylPainter(),
+          size: Size.infinite,
+        ),
+      );
+    }
+
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    return LayoutBuilder(builder: (context, constraints) {
+      final side = constraints.biggest.shortestSide;
+      return Container(
+        color: onSurface.withOpacity(.07),
+        alignment: Alignment.center,
+        child: Icon(
+          Icons.music_note_rounded,
+          size: side * .46,
+          color: onSurface.withOpacity(.40),
+        ),
+      );
+    });
   }
 }
 
