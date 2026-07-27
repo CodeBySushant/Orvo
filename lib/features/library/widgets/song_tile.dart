@@ -116,8 +116,17 @@ class SongTile extends ConsumerWidget {
 
     showModalBottomSheet<void>(
       context: context,
+      // BUG FIX: on smaller screens the action list is taller than the
+      // sheet's default height budget ("BOTTOM OVERFLOWED BY 194 PIXELS").
+      // Cap the sheet below full screen and let the content scroll.
+      isScrollControlled: true,
       builder: (sheetContext) => SafeArea(
-        child: Column(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(sheetContext).size.height * .86,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
@@ -283,6 +292,8 @@ class SongTile extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
           ],
+            ),
+          ),
         ),
       ),
     );

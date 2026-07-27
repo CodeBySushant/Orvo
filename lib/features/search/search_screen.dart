@@ -438,6 +438,10 @@ class _BrowseTile extends StatelessWidget {
     return Pressable(
       onTap: onTap,
       child: Container(
+        // BUG FIX: the oversized watermark icon was clipped to the tile's
+        // RECTANGLE, not its rounded shape — a pale sliver poked out past
+        // the corner radius. Clip to the decoration's shape.
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
           gradient: LinearGradient(

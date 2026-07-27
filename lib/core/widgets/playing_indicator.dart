@@ -33,7 +33,7 @@ class _PlayingIndicatorState extends State<PlayingIndicator>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 1200),
+    duration: const Duration(milliseconds: 2100),
   );
 
   @override
@@ -91,7 +91,7 @@ class _BarsPainter extends CustomPainter {
     for (var i = 0; i < bars; i++) {
       final wave =
           .5 + .5 * math.sin(2 * math.pi * (_cycles[i] * t + _phases[i]));
-      final h = size.height * (.30 + .70 * wave);
+      final h = size.height * (.34 + .56 * wave);
       final x = i * barWidth * 2;
       canvas.drawRRect(
         RRect.fromRectAndRadius(
