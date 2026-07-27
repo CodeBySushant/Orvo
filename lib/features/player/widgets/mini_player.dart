@@ -32,6 +32,10 @@ class MiniPlayer extends ConsumerWidget {
                 onTap: () => context.push('/player'),
                 child: Container(
                   margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                  // FIX: decoration radius doesn't clip children — the
+                  // progress strip ran straight through the rounded corners
+                  // and visibly stuck out below the card. Clip to the shape.
+                  clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
                     color: theme.colorScheme.surfaceContainerHigh,
                     borderRadius: BorderRadius.circular(18),
@@ -135,14 +139,12 @@ class _MiniProgress extends ConsumerWidget {
     final value = duration.inMilliseconds == 0
         ? 0.0
         : (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0);
-    return ClipRRect(
-      borderRadius:
-          const BorderRadius.vertical(bottom: Radius.circular(18)),
-      child: LinearProgressIndicator(
-        value: value,
-        minHeight: 2.5,
-        backgroundColor: Colors.transparent,
-      ),
+    // The parent card clips to its rounded shape now, so the strip can be a
+    // plain straight bar — the corners are handled by the card itself.
+    return LinearProgressIndicator(
+      value: value,
+      minHeight: 2.5,
+      backgroundColor: Colors.transparent,
     );
   }
 }
