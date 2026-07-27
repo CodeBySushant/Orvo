@@ -69,7 +69,7 @@ class HomeDrawer extends ConsumerWidget {
                     'Orvo',
                     style: theme.textTheme.headlineMedium!.copyWith(
                       fontSize: 42,
-                      fontWeight: FontWeight.w900,
+                      fontWeight: FontWeight.w800,
                       letterSpacing: .5,
                     ),
                   ),

@@ -176,7 +176,18 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     await session.configure(const AudioSessionConfiguration.music());
 
     // System playback state (notification buttons, seek bar, etc).
-    _player.playbackEventStream.map(_transformEvent).pipe(playbackState);
+    //
+    // BUG FIX (logcat): this used `.pipe(playbackState)`, which binds the
+    // subject via addStream — after that, every direct `playbackState.add`
+    // in _broadcastState() throws "Bad state: You cannot add items while
+    // items are being added from addStream". That silently killed session
+    // restore (restoreState → _broadcastState) and shuffle-icon updates.
+    // A plain listener forwards the same events without locking the subject.
+    _player.playbackEventStream
+        .map(_transformEvent)
+        .listen(playbackState.add, onError: (Object _, StackTrace __) {
+      // Player errors are surfaced by the dedicated error listener below.
+    });
 
     // FIX (#6): a corrupt / missing file used to stop playback silently.
     // Now: tell the user and auto-skip to the next track. A run of 3

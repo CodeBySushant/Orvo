@@ -73,6 +73,9 @@ abstract final class AppTheme {
       useMaterial3: true,
       brightness: brightness,
       colorScheme: scheme,
+      // REDESIGN v3.2: Plus Jakarta Sans everywhere. ThemeData applies the
+      // family onto the provided textTheme (and primaryTextTheme) itself.
+      fontFamily: 'PlusJakartaSans',
       scaffoldBackgroundColor: scaffold,
       splashFactory: InkSparkle.splashFactory,
       textTheme: textTheme,
