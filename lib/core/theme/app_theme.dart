@@ -12,33 +12,35 @@ abstract final class AppTheme {
   // (from dynamic_color, Android 12+). When present, the wallpaper-derived
   // primary / secondary replace the violet accent while Orvo's own surfaces
   // (porcelain / midnight / AMOLED black) and type scale are kept intact.
-  static ThemeData light([ColorScheme? dynamicScheme]) => _base(
+  // FEATURE (#27): optional skin accent — sits between Material You (which
+  // wins when enabled) and the built-in brand default.
+  static ThemeData light([ColorScheme? dynamicScheme, Color? accent]) => _base(
         brightness: Brightness.light,
-        primary: dynamicScheme?.primary ?? AppColors.violet,
+        primary: dynamicScheme?.primary ?? accent ?? AppColors.violet,
         secondary: dynamicScheme?.secondary,
-        seed: dynamicScheme?.primary,
+        seed: dynamicScheme?.primary ?? accent,
         scaffold: AppColors.porcelain,
         card: AppColors.porcelainCard,
         raised: const Color(0xFFEDECF6),
         onSurface: AppColors.inkOnLight,
       );
 
-  static ThemeData dark([ColorScheme? dynamicScheme]) => _base(
+  static ThemeData dark([ColorScheme? dynamicScheme, Color? accent]) => _base(
         brightness: Brightness.dark,
-        primary: dynamicScheme?.primary ?? AppColors.violetBright,
+        primary: dynamicScheme?.primary ?? accent ?? AppColors.violetBright,
         secondary: dynamicScheme?.secondary,
-        seed: dynamicScheme?.primary,
+        seed: dynamicScheme?.primary ?? accent,
         scaffold: AppColors.midnight,
         card: AppColors.midnightCard,
         raised: AppColors.midnightRaised,
         onSurface: AppColors.mistOnDark,
       );
 
-  static ThemeData amoled([ColorScheme? dynamicScheme]) => _base(
+  static ThemeData amoled([ColorScheme? dynamicScheme, Color? accent]) => _base(
         brightness: Brightness.dark,
-        primary: dynamicScheme?.primary ?? AppColors.violetBright,
+        primary: dynamicScheme?.primary ?? accent ?? AppColors.violetBright,
         secondary: dynamicScheme?.secondary,
-        seed: dynamicScheme?.primary,
+        seed: dynamicScheme?.primary ?? accent,
         scaffold: AppColors.trueBlack,
         card: AppColors.blackCard,
         raised: const Color(0xFF191C2B),

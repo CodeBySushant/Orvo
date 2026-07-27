@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/i18n/l10n.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/skin_provider.dart';
 import 'core/theme/theme_provider.dart';
 import 'features/onboarding/permission_gate.dart';
 
@@ -19,6 +20,8 @@ class OrvoApp extends ConsumerWidget {
     final language = ref.watch(languageProvider);
     // FEATURE (#12): Material You — wallpaper-derived accent colors.
     final useDynamic = ref.watch(dynamicColorProvider);
+    // FEATURE (#27): skin accent (overridden by Material You when enabled).
+    final skin = ref.watch(skinProvider);
     final router = ref.watch(routerProvider);
 
     return DynamicColorBuilder(
@@ -27,11 +30,12 @@ class OrvoApp extends ConsumerWidget {
         final lightScheme = useDynamic ? lightDynamic : null;
         final darkScheme = useDynamic ? darkDynamic : null;
 
+        final bright = skin.accentBright;
         final (ThemeData darkTheme, ThemeMode mode) = switch (themeSetting) {
-          OrvoTheme.system => (AppTheme.dark(darkScheme), ThemeMode.system),
-          OrvoTheme.light => (AppTheme.dark(darkScheme), ThemeMode.light),
-          OrvoTheme.dark => (AppTheme.dark(darkScheme), ThemeMode.dark),
-          OrvoTheme.amoled => (AppTheme.amoled(darkScheme), ThemeMode.dark),
+          OrvoTheme.system => (AppTheme.dark(darkScheme, bright), ThemeMode.system),
+          OrvoTheme.light => (AppTheme.dark(darkScheme, bright), ThemeMode.light),
+          OrvoTheme.dark => (AppTheme.dark(darkScheme, bright), ThemeMode.dark),
+          OrvoTheme.amoled => (AppTheme.amoled(darkScheme, bright), ThemeMode.dark),
         };
 
         return MaterialApp.router(
@@ -46,7 +50,7 @@ class OrvoApp extends ConsumerWidget {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          theme: AppTheme.light(lightScheme),
+          theme: AppTheme.light(lightScheme, skin.accent),
           darkTheme: darkTheme,
           themeMode: mode,
           routerConfig: router,

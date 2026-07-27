@@ -15,6 +15,7 @@ import '../../features/player/screens/now_playing_screen.dart';
 import '../../features/playlists/screens/playlist_detail_screen.dart';
 import '../../features/search/search_screen.dart';
 import '../../features/settings/settings_screen.dart';
+import '../../features/settings/skin_themes_screen.dart';
 import '../../shell/app_shell.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -92,6 +93,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/equalizer',
         builder: (context, state) => const EqualizerScreen(),
+      ),
+      // FEATURE (#27): skin themes hub.
+      GoRoute(
+        path: '/themes',
+        builder: (context, state) => const SkinThemesScreen(),
       ),
       // FEATURE (#25): folder exclusions manager.
       GoRoute(

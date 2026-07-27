@@ -3,8 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/i18n/l10n.dart';
-import '../../core/theme/app_theme.dart';
-import '../../core/theme/theme_provider.dart';
 import '../../core/utils/formatters.dart';
 import '../library/providers/genre_providers.dart';
 import '../library/providers/library_providers.dart';
@@ -80,7 +78,8 @@ class HomeDrawer extends ConsumerWidget {
                   label: t.themes,
                   onTap: () {
                     Navigator.pop(context);
-                    _showThemeSheet(context, ref);
+                    // FEATURE (#27): full skin themes hub (modes + skins).
+                    context.push('/themes');
                   },
                 ),
                 _DrawerItem(
@@ -147,53 +146,6 @@ class HomeDrawer extends ConsumerWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  // ---------------- Themes picker ----------------
-
-  void _showThemeSheet(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (sheetContext) => Consumer(
-        builder: (context, ref, _) {
-          final t = ref.watch(l10nProvider);
-          final current = ref.watch(themeProvider);
-          final labels = {
-            OrvoTheme.system: t.themeAuto,
-            OrvoTheme.light: t.themeLight,
-            OrvoTheme.dark: t.themeDark,
-            OrvoTheme.amoled: 'AMOLED',
-          };
-          return SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(t.themes,
-                        style: Theme.of(context).textTheme.titleMedium),
-                  ),
-                ),
-                for (final option in OrvoTheme.values)
-                  RadioListTile<OrvoTheme>(
-                    value: option,
-                    groupValue: current,
-                    title: Text(labels[option]!),
-                    onChanged: (value) {
-                      if (value != null) {
-                        ref.read(themeProvider.notifier).set(value);
-                      }
-                      Navigator.pop(sheetContext);
-                    },
-                  ),
-              ],
-            ),
-          );
-        },
       ),
     );
   }
