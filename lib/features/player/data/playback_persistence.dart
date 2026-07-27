@@ -168,11 +168,22 @@ class PlaybackPersistence {
 
   MediaItem _itemFromMap(Map<String, dynamic> map) {
     final albumId = (map['albumId'] as num?)?.toInt() ?? -1;
+    // FIX (lock screen): sessions persisted BEFORE the metadata sanitizer
+    // still contain raw "<unknown>" strings — clean them on the way out so
+    // an old saved queue can't reintroduce ugly names into the notification.
+    String clean(String? v, String fallback) {
+      final t = v?.trim();
+      if (t == null || t.isEmpty || t.toLowerCase() == '<unknown>') {
+        return fallback;
+      }
+      return t;
+    }
+
     return MediaItem(
       id: map['uri'] as String,
-      title: (map['title'] as String?) ?? 'Unknown',
-      artist: map['artist'] as String?,
-      album: map['album'] as String?,
+      title: clean(map['title'] as String?, 'Unknown'),
+      artist: clean(map['artist'] as String?, 'Unknown Artist'),
+      album: clean(map['album'] as String?, 'Unknown Album'),
       duration: map['durMs'] == null
           ? null
           : Duration(milliseconds: (map['durMs'] as num).toInt()),
