@@ -32,6 +32,18 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  # App icon generation (run: dart run flutter_launcher_icons)
+  flutter_launcher_icons: ^0.14.3
+
+# FEATURE: custom launcher icon from assets/icons/icon1.png.
+# Regenerates every mipmap density + the Android 8+ adaptive icon.
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icons/icon1.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#12101F"
+  adaptive_icon_foreground: "assets/icons/icon1.png"
 
 flutter:
   uses-material-design: true
