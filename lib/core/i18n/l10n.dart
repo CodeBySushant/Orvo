@@ -90,6 +90,9 @@ class L10n {
   String nSongsExact(int n) => n == 1
       ? '1 ${_s(['Song', 'गाना', 'canción', '曲', '곡', 'Song', 'titre', 'песня'])}'
       : nSongs(n);
+  // REDESIGN v3.1 (mockup sidebar).
+  String get themes => _s(['Themes', 'थीम', 'Temas', 'テーマ', '테마', 'Themes', 'Thèmes', 'Темы']);
+  String get sleepTimer => _s(['Sleep Timer', 'स्लीप टाइमर', 'Temporizador', 'スリープタイマー', '수면 타이머', 'Sleep-Timer', 'Minuterie de veille', 'Таймер сна']);
   String nSongs(int n) => '$n ${_s(['Songs', 'गाने', 'canciones', '曲', '곡', 'Songs', 'titres', 'песен'])}';
   String get createFirstPlaylist => _s(['Create your first playlist', 'अपनी पहली प्लेलिस्ट बनाएँ', 'Crea tu primera playlist', '最初のプレイリストを作成', '첫 재생목록 만들기', 'Erstelle deine erste Playlist', 'Créez votre première playlist', 'Создайте первый плейлист']);
   String get noMusicYet => _s(['No music yet', 'अभी कोई संगीत नहीं', 'Aún no hay música', 'まだ音楽がありません', '아직 음악이 없음', 'Noch keine Musik', 'Pas encore de musique', 'Музыки пока нет']);

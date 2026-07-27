@@ -18,6 +18,7 @@ import '../playlists/providers/playlist_providers.dart';
 import '../playlists/widgets/add_to_playlist_sheet.dart'
     show promptPlaylistName;
 import '../stats/play_stats.dart';
+import 'home_drawer.dart';
 
 // ---------------------------------------------------------------------------
 // REDESIGN v3 — mockup home.
@@ -52,6 +53,7 @@ class HomeScreen extends ConsumerWidget {
     final songsAsync = ref.watch(songsProvider);
 
     return Scaffold(
+      drawer: const HomeDrawer(),
       body: SafeArea(
         bottom: false,
         child: songsAsync.when(
@@ -182,40 +184,22 @@ class _HomeBody extends ConsumerWidget {
 // 1 — Top bar: menu glyph (three lines + red dot) and search
 // ---------------------------------------------------------------------------
 
-class _TopBar extends ConsumerWidget {
+class _TopBar extends StatelessWidget {
   const _TopBar();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 10, 12, 8),
       child: Row(
         children: [
-          PopupMenuButton<String>(
-            tooltip: 'Menu',
-            position: PopupMenuPosition.under,
-            onSelected: (value) {
-              switch (value) {
-                case 'settings':
-                  context.go('/settings');
-                case 'equalizer':
-                  context.push('/equalizer');
-                case 'rescan':
-                  ref.invalidate(rawSongsProvider);
-                  ref.invalidate(albumsProvider);
-                  ref.invalidate(artistsProvider);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Rescanning your music…')),
-                  );
-              }
-            },
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'settings', child: Text('Settings')),
-              PopupMenuItem(value: 'equalizer', child: Text('Equalizer')),
-              PopupMenuItem(value: 'rescan', child: Text('Rescan library')),
-            ],
-            child: _MenuGlyph(color: onSurface),
+          // Opens the mockup-style sidebar (HomeDrawer).
+          Builder(
+            builder: (context) => Pressable(
+              onTap: () => Scaffold.of(context).openDrawer(),
+              child: _MenuGlyph(color: onSurface),
+            ),
           ),
           const Spacer(),
           IconButton(
