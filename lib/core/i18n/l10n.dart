@@ -79,6 +79,17 @@ class L10n {
   String get browseByGenre => _s(['Browse by Genre', 'शैली के अनुसार देखें', 'Explorar por género', 'ジャンルで探す', '장르별 탐색', 'Nach Genre stöbern', 'Parcourir par genre', 'По жанрам']);
   String get seeAll => _s(['See All', 'सभी देखें', 'Ver todo', 'すべて見る', '모두 보기', 'Alle anzeigen', 'Tout voir', 'Все']);
   String get likedSongs => _s(['Liked Songs', 'पसंद किए गए गाने', 'Canciones que te gustan', 'お気に入りの曲', '좋아요 표시한 곡', 'Lieblingssongs', 'Titres aimés', 'Понравившиеся']);
+  // REDESIGN v3 (mockup home): hero cards + new shelf titles.
+  String get favorites => _s(['Favorites', 'पसंदीदा', 'Favoritos', 'お気に入り', '즐겨찾기', 'Favoriten', 'Favoris', 'Избранное']);
+  String get shuffle => _s(['Shuffle', 'शफ़ल', 'Aleatorio', 'シャッフル', '셔플', 'Zufällig', 'Aléatoire', 'Перемешать']);
+  String get myPlaylist => _s(['My Playlist', 'मेरी प्लेलिस्ट', 'Mi playlist', 'マイプレイリスト', '내 재생목록', 'Meine Playlist', 'Ma playlist', 'Мой плейлист']);
+  String get lastAdded => _s(['Last Added', 'हाल में जोड़े गए', 'Añadidos recientemente', '最近追加', '최근 추가', 'Zuletzt hinzugefügt', 'Derniers ajouts', 'Недавно добавленные']);
+  String get mostPlayed => _s(['Most Played', 'सबसे ज़्यादा चलाए गए', 'Más reproducidos', 'よく再生する曲', '자주 재생한 곡', 'Meistgespielt', 'Les plus écoutés', 'Часто прослушиваемые']);
+  String get recommendArtists => _s(['Recommend Artists', 'सुझाए गए कलाकार', 'Artistas recomendados', 'おすすめアーティスト', '추천 아티스트', 'Empfohlene Künstler', 'Artistes recommandés', 'Рекомендуемые исполнители']);
+  String get recommendAlbums => _s(['Recommend Albums', 'सुझाए गए एल्बम', 'Álbumes recomendados', 'おすすめアルバム', '추천 앨범', 'Empfohlene Alben', 'Albums recommandés', 'Рекомендуемые альбомы']);
+  String nSongsExact(int n) => n == 1
+      ? '1 ${_s(['Song', 'गाना', 'canción', '曲', '곡', 'Song', 'titre', 'песня'])}'
+      : nSongs(n);
   String nSongs(int n) => '$n ${_s(['Songs', 'गाने', 'canciones', '曲', '곡', 'Songs', 'titres', 'песен'])}';
   String get createFirstPlaylist => _s(['Create your first playlist', 'अपनी पहली प्लेलिस्ट बनाएँ', 'Crea tu primera playlist', '最初のプレイリストを作成', '첫 재생목록 만들기', 'Erstelle deine erste Playlist', 'Créez votre première playlist', 'Создайте первый плейлист']);
   String get noMusicYet => _s(['No music yet', 'अभी कोई संगीत नहीं', 'Aún no hay música', 'まだ音楽がありません', '아직 음악이 없음', 'Noch keine Musik', 'Pas encore de musique', 'Музыки пока нет']);

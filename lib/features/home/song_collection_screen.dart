@@ -24,6 +24,12 @@ class SongCollectionScreen extends ConsumerWidget {
           ref.watch(recentlyPlayedProvider).valueOrNull ?? const <Song>[],
           'Nothing played yet — songs appear here\nafter 15 seconds of listening.',
         ),
+      // REDESIGN v3: "Most Played" shelf target.
+      'most' => (
+          'Most Played',
+          ref.watch(mostPlayedProvider).valueOrNull ?? const <Song>[],
+          'Nothing here yet — play counts build\nafter 15 seconds of listening.',
+        ),
       'favorites' => (
           'Favorites',
           ref.watch(favoriteSongsProvider),

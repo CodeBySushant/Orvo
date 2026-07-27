@@ -37,7 +37,7 @@ class SongTile extends ConsumerWidget {
     return ListTile(
       onTap: () =>
           ref.read(playerControllerProvider).playFrom(contextSongs, index),
-      onLongPress: () => _showActions(context, ref),
+      onLongPress: () => SongTile.showActions(context, ref, song),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
       leading: leadingNumber != null
           ? SizedBox(
@@ -102,7 +102,8 @@ class SongTile extends ConsumerWidget {
     );
   }
 
-  void _showActions(BuildContext context, WidgetRef ref) {
+  /// Full song actions sheet — also opened from the Home tiles' ⋮ menu.
+  static void showActions(BuildContext context, WidgetRef ref, Song song) {
     final theme = Theme.of(context);
     final isFavorite = ref.read(favoritesProvider).contains(song.id);
     final controller = ref.read(playerControllerProvider);
