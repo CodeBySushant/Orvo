@@ -255,14 +255,28 @@ class _AlbumsTab extends ConsumerWidget {
         }
         return LayoutBuilder(builder: (context, constraints) {
           final columns = (constraints.maxWidth / 190).floor().clamp(2, 6);
+          // BUG FIX: childAspectRatio sized cells as a pure width ratio, so
+          // the taller Plus Jakarta Sans metrics overflowed the text block
+          // by a few pixels ("BOTTOM OVERFLOWED"). Compute the exact height
+          // instead: square artwork (= cell width) + a text block measured
+          // through the system text scaler, so it also survives users'
+          // accessibility font-size settings.
+          const gridPadding = 32.0; // 16 left + 16 right
+          const crossSpacing = 14.0;
+          final cellWidth = (constraints.maxWidth -
+                  gridPadding -
+                  crossSpacing * (columns - 1)) /
+              columns;
+          final textBlock =
+              MediaQuery.textScalerOf(context).scale(46) + 12;
           return GridView.builder(
             physics: const BouncingScrollPhysics(),
             padding: const EdgeInsets.all(16),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: columns,
               mainAxisSpacing: 18,
-              crossAxisSpacing: 14,
-              childAspectRatio: .78,
+              crossAxisSpacing: crossSpacing,
+              mainAxisExtent: cellWidth + textBlock,
             ),
             itemCount: albums.length,
             itemBuilder: (context, i) => AlbumCard(album: albums[i]),

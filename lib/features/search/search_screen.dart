@@ -374,7 +374,9 @@ class _IdleView extends StatelessWidget {
             physics: const NeverScrollableScrollPhysics(),
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
-            childAspectRatio: 1.9,
+            // Preventive headroom for Plus Jakarta Sans (same class of
+            // overflow as the albums/genres grids).
+            childAspectRatio: 1.75,
             children: [
               _BrowseTile(
                 label: ProviderScope.containerOf(context)

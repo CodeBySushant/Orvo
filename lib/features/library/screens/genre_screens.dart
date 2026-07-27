@@ -45,7 +45,9 @@ class GenresScreen extends ConsumerWidget {
               crossAxisCount: 2,
               mainAxisSpacing: 12,
               crossAxisSpacing: 12,
-              childAspectRatio: 1.9,
+              // BUG FIX: 1.9 left no headroom for Plus Jakarta Sans' taller
+              // lines — the name + count block overflowed the tile.
+              childAspectRatio: 1.62,
             ),
             itemCount: genres.length,
             itemBuilder: (context, i) {
@@ -56,7 +58,7 @@ class GenresScreen extends ConsumerWidget {
                 onTap: () => context.push(
                     '/genre/${genre.id}?name=${Uri.encodeComponent(genre.name)}'),
                 child: Container(
-                  padding: const EdgeInsets.all(14),
+                  padding: const EdgeInsets.all(13),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(18),
                     gradient: LinearGradient(
@@ -83,7 +85,8 @@ class GenresScreen extends ConsumerWidget {
                               style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w700,
-                                  fontSize: 15)),
+                                  fontSize: 15,
+                                  height: 1.25)),
                           Text('${genre.songCount} songs',
                               style: TextStyle(
                                   color: Colors.white.withOpacity(.85),
