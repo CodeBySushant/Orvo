@@ -78,7 +78,7 @@ class LibraryRepositoryImpl implements LibraryRepository {
           .map((m) => Album(
                 id: m.id,
                 title: m.album,
-                artist: m.artist ?? 'Unknown artist',
+                artist: _clean(m.artist, 'Unknown Artist'),
                 songCount: m.numOfSongs,
               ))
           .toList(growable: false);
@@ -100,7 +100,7 @@ class LibraryRepositoryImpl implements LibraryRepository {
       return models
           .map((m) => Artist(
                 id: m.id,
-                name: m.artist,
+                name: _clean(m.artist, 'Unknown Artist'),
                 trackCount: m.numberOfTracks ?? 0,
                 albumCount: m.numberOfAlbums ?? 0,
               ))
@@ -147,11 +147,22 @@ class LibraryRepositoryImpl implements LibraryRepository {
     }
   }
 
+  /// FIX (lock screen): MediaStore reports missing tags as the literal
+  /// string "<unknown>" — which then shows verbatim in the notification and
+  /// lock screen. Normalize null / empty / "<unknown>" to friendly names.
+  static String _clean(String? value, String fallback) {
+    final v = value?.trim();
+    if (v == null || v.isEmpty || v.toLowerCase() == '<unknown>') {
+      return fallback;
+    }
+    return v;
+  }
+
   Song _toSong(SongModel m) => Song(
         id: m.id,
         title: m.title,
-        artist: m.artist ?? 'Unknown artist',
-        album: m.album ?? 'Unknown album',
+        artist: _clean(m.artist, 'Unknown Artist'),
+        album: _clean(m.album, 'Unknown Album'),
         albumId: m.albumId ?? -1,
         artistId: m.artistId ?? -1,
         duration: Duration(milliseconds: m.duration ?? 0),

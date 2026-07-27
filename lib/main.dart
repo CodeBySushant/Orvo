@@ -24,6 +24,9 @@ Future<void> main() async {
       // launcher mipmap rendered as a grey/white blob because Android
       // draws the small icon as a pure-alpha silhouette.
       androidNotificationIcon: 'drawable/ic_stat_orvo',
+      // FIX (lock screen): brand tint for devices that don't colorize the
+      // media notification from the artwork.
+      notificationColor: Color(0xFFFA233B),
     ),
   );
 

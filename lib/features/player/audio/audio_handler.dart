@@ -1,11 +1,14 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:on_audio_query_pluse/on_audio_query.dart' show OnAudioQuery;
+import 'package:on_audio_query_pluse/on_audio_query.dart'
+    show OnAudioQuery, ArtworkType;
 
+import '../../../core/widgets/artwork.dart' show ArtworkCache;
 import '../../library/data/library_repository_impl.dart';
 import '../../library/domain/entities.dart';
 import '../../library/domain/library_repository.dart';
@@ -223,6 +226,8 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       final q = queue.value;
       if (index != null && index >= 0 && index < q.length) {
         mediaItem.add(q[index]);
+        // FIX (lock screen): give the notification REAL artwork.
+        _enrichNotificationArt(q[index]);
       }
       // FEATURE (crossfade v1): the previous track faded out — bring the
       // new one in gently instead of snapping to full volume.
@@ -637,6 +642,54 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// when no player event fires.
   void _broadcastState() {
     playbackState.add(_transformEvent(_player.playbackEvent));
+  }
+
+  // --- Lock screen artwork -------------------------------------------------
+  //
+  // FIX (lock screen): the `content://media/external/audio/albumart/<id>`
+  // URI silently fails on many devices (no albumart record, or the system
+  // UI process can't read it) — leaving the media notification with a blank
+  // square, which looks anything but premium. Instead, extract the embedded
+  // artwork for the CURRENT track (through the existing LRU ArtworkCache),
+  // write it once into the app cache, and hand the notification a plain
+  // file:// URI — which always renders, and lets Android colorize the
+  // notification from the art like Spotify / Apple Music.
+
+  int _artSeq = 0;
+
+  Future<void> _enrichNotificationArt(MediaItem item) async {
+    if (item.artUri?.scheme == 'file') return; // already enriched
+    final songId = item.extras?['songId'];
+    if (songId is! int || songId <= 0) return;
+
+    final seq = ++_artSeq;
+    try {
+      final bytes = await ArtworkCache.instance
+          .load(songId, ArtworkType.AUDIO, size: 640);
+      if (bytes == null || bytes.isEmpty) return;
+
+      final file = File('${Directory.systemTemp.path}/orvo_art_$songId.jpg');
+      if (!await file.exists() || await file.length() != bytes.length) {
+        await file.writeAsBytes(bytes, flush: true);
+      }
+
+      // A newer track took over while we were loading — drop this result.
+      if (seq != _artSeq || mediaItem.value?.id != item.id) return;
+
+      final enriched = item.copyWith(artUri: Uri.file(file.path));
+      mediaItem.add(enriched);
+
+      // Keep the queue's copy in sync so returning to this track (or a
+      // queue-sheet rebuild) reuses the enriched art immediately.
+      final q = List<MediaItem>.from(queue.value);
+      final qi = q.indexWhere((m) => m.id == item.id);
+      if (qi != -1) {
+        q[qi] = enriched;
+        queue.add(q);
+      }
+    } catch (_) {
+      // Art is decorative — never let it interfere with playback.
+    }
   }
 
   @override
