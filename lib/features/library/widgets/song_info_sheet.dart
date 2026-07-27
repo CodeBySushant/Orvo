@@ -17,7 +17,15 @@ class SongInfoSheet extends StatelessWidget {
   static Future<void> show(BuildContext context, Song song) {
     return showModalBottomSheet<void>(
       context: context,
-      builder: (context) => SongInfoSheet(song: song),
+      // BUG FIX: the info list overflows the sheet's default height budget
+      // on smaller screens — cap below full screen and scroll the content.
+      isScrollControlled: true,
+      builder: (context) => ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * .86,
+        ),
+        child: SingleChildScrollView(child: SongInfoSheet(song: song)),
+      ),
     );
   }
 
