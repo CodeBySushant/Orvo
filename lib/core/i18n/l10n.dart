@@ -12,18 +12,19 @@ import '../theme/theme_provider.dart' show sharedPreferencesProvider;
 /// are localized via flutter_localizations in app.dart.
 
 enum AppLanguage {
-  en('English', Locale('en')),
-  hi('हिन्दी', Locale('hi')),
-  es('Español', Locale('es')),
-  ja('日本語', Locale('ja')),
-  ko('한국어', Locale('ko')),
-  de('Deutsch', Locale('de')),
-  fr('Français', Locale('fr')),
-  ru('Русский', Locale('ru'));
+  en('English', Locale('en'), '🇺🇸'),
+  hi('हिन्दी', Locale('hi'), '🇮🇳'),
+  es('Español', Locale('es'), '🇪🇸'),
+  ja('日本語', Locale('ja'), '🇯🇵'),
+  ko('한국어', Locale('ko'), '🇰🇷'),
+  de('Deutsch', Locale('de'), '🇩🇪'),
+  fr('Français', Locale('fr'), '🇫🇷'),
+  ru('Русский', Locale('ru'), '🇷🇺');
 
-  const AppLanguage(this.nativeName, this.locale);
+  const AppLanguage(this.nativeName, this.locale, this.flag);
   final String nativeName;
   final Locale locale;
+  final String flag;
 }
 
 const _kLanguageKey = 'orvo.language';

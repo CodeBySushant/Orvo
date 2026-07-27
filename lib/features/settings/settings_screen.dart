@@ -61,33 +61,61 @@ class SettingsScreen extends ConsumerWidget {
             );
           }),
           // FEATURE (#24): language picker — switching applies instantly.
+          // REDESIGN v3.5 (mockup): flag badges + bold names; the selected
+          // language sits on a filled rounded card in the theme accent.
           Consumer(builder: (context, ref, _) {
             final t2 = ref.watch(l10nProvider);
             final lang = ref.watch(languageProvider);
             return ListTile(
               leading: const Icon(Icons.language_rounded),
               title: Text(t2.language),
-              subtitle:
-                  Text(lang.nativeName, style: theme.textTheme.labelMedium),
+              subtitle: Text('${lang.flag}  ${lang.nativeName}',
+                  style: theme.textTheme.labelMedium),
               trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () => showDialog<void>(
+              onTap: () => showModalBottomSheet<void>(
                 context: context,
-                builder: (dialogContext) => SimpleDialog(
-                  title: Text(t2.language),
-                  children: [
-                    for (final option in AppLanguage.values)
-                      RadioListTile<AppLanguage>(
-                        value: option,
-                        groupValue: lang,
-                        title: Text(option.nativeName),
-                        onChanged: (v) {
-                          if (v != null) {
-                            ref.read(languageProvider.notifier).set(v);
-                          }
-                          Navigator.pop(dialogContext);
-                        },
+                isScrollControlled: true,
+                builder: (sheetContext) => Consumer(
+                  builder: (context, ref, _) {
+                    final t3 = ref.watch(l10nProvider);
+                    final current = ref.watch(languageProvider);
+                    final theme = Theme.of(context);
+                    return SafeArea(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding:
+                                const EdgeInsets.fromLTRB(24, 18, 24, 10),
+                            child: Text(t3.language,
+                                style: theme.textTheme.titleMedium!
+                                    .copyWith(fontWeight: FontWeight.w800)),
+                          ),
+                          Flexible(
+                            child: ListView(
+                              shrinkWrap: true,
+                              physics: const BouncingScrollPhysics(),
+                              padding: const EdgeInsets.only(bottom: 12),
+                              children: [
+                                for (final option in AppLanguage.values)
+                                  _LanguageRow(
+                                    language: option,
+                                    selected: option == current,
+                                    onTap: () {
+                                      ref
+                                          .read(languageProvider.notifier)
+                                          .set(option);
+                                      Navigator.pop(sheetContext);
+                                    },
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                  ],
+                    );
+                  },
                 ),
               ),
             );
@@ -332,6 +360,78 @@ class _ThemeCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(label, style: theme.textTheme.labelMedium),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// REDESIGN v3.5 — language row (flag badge + name; selected = accent card)
+// ---------------------------------------------------------------------------
+
+class _LanguageRow extends StatelessWidget {
+  const _LanguageRow({
+    required this.language,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final AppLanguage language;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
+    final fg = selected ? theme.colorScheme.onPrimary : null;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      child: Material(
+        color: selected ? accent : Colors.transparent,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                // Flag badge — rounded square, like the reference.
+                Container(
+                  width: 44,
+                  height: 44,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? Colors.black.withOpacity(.14)
+                        : theme.colorScheme.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Text(language.flag,
+                      style: const TextStyle(fontSize: 24)),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    language.nativeName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleMedium!.copyWith(
+                      fontSize: 17.5,
+                      fontWeight: FontWeight.w700,
+                      color: fg,
+                    ),
+                  ),
+                ),
+                if (selected)
+                  Icon(Icons.check_rounded, color: fg, size: 22),
+              ],
+            ),
+          ),
         ),
       ),
     );
