@@ -50,6 +50,7 @@ flutter:
   # FEATURE (app icon): preview images for the launcher-icon picker.
   assets:
     - assets/icons/
+    - assets/themes/
   fonts:
     - family: PlusJakartaSans
       fonts:

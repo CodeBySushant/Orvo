@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/i18n/l10n.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/bg_theme_provider.dart';
 import '../../core/theme/skin_provider.dart';
 import '../../core/theme/theme_provider.dart';
 import '../../core/widgets/pressable.dart';
@@ -105,7 +106,147 @@ class SkinThemesScreen extends ConsumerWidget {
               ],
             ),
           ),
+
+          // 4 — FEATURE (backgrounds): wallpaper grid, below the skins.
+          const SizedBox(height: 30),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Text(
+              t.backgrounds,
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium!
+                  .copyWith(fontWeight: FontWeight.w800),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 6, 20, 14),
+            child: Text(t.backgroundsNote,
+                style: Theme.of(context).textTheme.labelMedium),
+          ),
+          Consumer(builder: (context, ref, _) {
+            final selectedBg = ref.watch(bgThemeProvider);
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: GridView.count(
+                crossAxisCount: 3,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: .52,
+                children: [
+                  _BgCard(
+                    bg: null,
+                    label: t.noBackground,
+                    selected: selectedBg == null,
+                    onTap: () =>
+                        ref.read(bgThemeProvider.notifier).set(null),
+                  ),
+                  for (final bg in kBgThemes)
+                    _BgCard(
+                      bg: bg,
+                      selected: selectedBg?.id == bg.id,
+                      onTap: () =>
+                          ref.read(bgThemeProvider.notifier).set(bg),
+                    ),
+                ],
+              ),
+            );
+          }),
         ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// FEATURE (backgrounds): wallpaper thumbnail card. `bg == null` renders the
+// "None" card (plain surface + slash icon).
+// ---------------------------------------------------------------------------
+
+class _BgCard extends StatelessWidget {
+  const _BgCard({
+    required this.bg,
+    required this.selected,
+    required this.onTap,
+    this.label,
+  });
+
+  final BgTheme? bg;
+  final bool selected;
+  final VoidCallback onTap;
+  final String? label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
+
+    return Pressable(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            width: selected ? 2.6 : 1,
+            color: selected
+                ? accent
+                : theme.colorScheme.onSurface.withOpacity(.12),
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(15),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (bg != null)
+                Image.asset(
+                  bg!.asset,
+                  fit: BoxFit.cover,
+                  filterQuality: FilterQuality.medium,
+                )
+              else
+                Container(
+                  color: theme.colorScheme.surfaceContainerHigh,
+                  alignment: Alignment.center,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.block_rounded,
+                          size: 26,
+                          color:
+                              theme.colorScheme.onSurface.withOpacity(.5)),
+                      if (label != null) ...[
+                        const SizedBox(height: 6),
+                        Text(label!,
+                            style: theme.textTheme.labelMedium),
+                      ],
+                    ],
+                  ),
+                ),
+              if (selected)
+                Positioned(
+                  right: 6,
+                  bottom: 6,
+                  child: Container(
+                    width: 24,
+                    height: 24,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: accent,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                          color: theme.colorScheme.surface, width: 2),
+                    ),
+                    child: Icon(Icons.check_rounded,
+                        size: 14, color: theme.colorScheme.onPrimary),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

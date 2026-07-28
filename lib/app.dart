@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/i18n/l10n.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/bg_theme_provider.dart';
 import 'core/theme/skin_provider.dart';
 import 'core/theme/theme_provider.dart';
 import 'features/onboarding/permission_gate.dart';
@@ -22,6 +23,8 @@ class OrvoApp extends ConsumerWidget {
     final useDynamic = ref.watch(dynamicColorProvider);
     // FEATURE (#27): skin accent (overridden by Material You when enabled).
     final skin = ref.watch(skinProvider);
+    // FEATURE (backgrounds): wallpaper behind the whole app.
+    final bg = ref.watch(bgThemeProvider);
     final router = ref.watch(routerProvider);
 
     return DynamicColorBuilder(
@@ -31,12 +34,23 @@ class OrvoApp extends ConsumerWidget {
         final darkScheme = useDynamic ? darkDynamic : null;
 
         final bright = skin.accentBright;
-        final (ThemeData darkTheme, ThemeMode mode) = switch (themeSetting) {
+        var (ThemeData darkTheme, ThemeMode mode) = switch (themeSetting) {
           OrvoTheme.system => (AppTheme.dark(darkScheme, bright), ThemeMode.system),
           OrvoTheme.light => (AppTheme.dark(darkScheme, bright), ThemeMode.light),
           OrvoTheme.dark => (AppTheme.dark(darkScheme, bright), ThemeMode.dark),
           OrvoTheme.amoled => (AppTheme.amoled(darkScheme, bright), ThemeMode.dark),
         };
+        var lightTheme = AppTheme.light(lightScheme, skin.accent);
+
+        // FEATURE (backgrounds): while a wallpaper is active, the whole app
+        // uses the dark look (light text over the darkened image, like the
+        // reference) with transparent scaffolds so the wallpaper shows
+        // through on every route.
+        if (bg != null) {
+          darkTheme = applyBgSurfaces(darkTheme);
+          lightTheme = darkTheme;
+          mode = ThemeMode.dark;
+        }
 
         return MaterialApp.router(
           title: 'Orvo',
@@ -50,12 +64,13 @@ class OrvoApp extends ConsumerWidget {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          theme: AppTheme.light(lightScheme, skin.accent),
+          theme: lightTheme,
           darkTheme: darkTheme,
           themeMode: mode,
           routerConfig: router,
-          builder: (context, child) =>
-              PermissionGate(child: child ?? const SizedBox.shrink()),
+          builder: (context, child) => OrvoBackdrop(
+            child: PermissionGate(child: child ?? const SizedBox.shrink()),
+          ),
         );
       },
     );
