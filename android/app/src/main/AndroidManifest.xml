@@ -40,6 +40,14 @@
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme"/>
+            <!-- FEATURE (app icon): this MAIN/LAUNCHER filter exists ONLY so
+                 the Flutter tool can find a launch activity ("flutter run"
+                 parses <activity> elements, never <activity-alias>). It is
+                 REMOVED from every built APK by the buildtype manifests
+                 (src/debug, src/profile, src/release) via
+                 tools:node="removeAll", so the only real launcher entries
+                 are the .LauncherIcon* aliases below — exactly one enabled
+                 at a time. MainActivity itself always stays enabled. -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
@@ -48,6 +56,59 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2"/>
+
+        <!-- FEATURE (app icon): selectable launcher icons. Exactly one alias
+             is enabled at a time, switched at runtime via the orvo/appicon
+             channel. Alias 1 carries the default @mipmap/ic_launcher and
+             ships enabled. -->
+        <activity-alias
+            android:name=".LauncherIcon1"
+            android:targetActivity=".MainActivity"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="Orvo">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".LauncherIcon2"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_2"
+            android:label="Orvo">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".LauncherIcon3"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_3"
+            android:label="Orvo">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".LauncherIcon4"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_4"
+            android:label="Orvo">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
 
         <!-- audio_service -->
         <service

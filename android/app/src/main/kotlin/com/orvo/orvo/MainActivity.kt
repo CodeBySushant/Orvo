@@ -1,6 +1,8 @@
 package com.orvo.orvo
 
+import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
@@ -25,6 +27,7 @@ class MainActivity : AudioServiceActivity() {
         super.configureFlutterEngine(flutterEngine)
         registerSystemChannel(flutterEngine)
         registerWidgetChannel(flutterEngine)
+        registerAppIconChannel(flutterEngine)
 
         // FIX (#1): the equalizer channel now delegates to the process-wide
         // AudioEffects holder instead of Activity-owned fields, so the EQ
@@ -72,6 +75,72 @@ class MainActivity : AudioServiceActivity() {
                     }
                 } catch (e: Exception) {
                     result.error("EQ_ERROR", e.message, null)
+                }
+            }
+    }
+
+    // -----------------------------------------------------------------------
+    // FEATURE (app icon): Snapchat-style selectable launcher icon.
+    //
+    // All launcher entries are activity-aliases (.LauncherIcon1–4) targeting
+    // MainActivity, which itself always stays enabled — an alias only works
+    // while its target activity is enabled. Selecting an icon enables exactly
+    // one alias and explicitly disables the rest. DONT_KILL_APP keeps the app
+    // alive during the switch; the launcher refreshes the icon on its own
+    // (some launchers take a few seconds or a home-screen revisit).
+    // -----------------------------------------------------------------------
+
+    private val iconCount = 4
+
+    private fun launcherAlias(index: Int): ComponentName =
+        ComponentName(this, "$packageName.LauncherIcon$index")
+
+    private fun registerAppIconChannel(flutterEngine: FlutterEngine) {
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "orvo/appicon")
+            .setMethodCallHandler { call, result ->
+                try {
+                    when (call.method) {
+                        "set" -> {
+                            val index =
+                                (call.argument<Int>("index") ?: 1).coerceIn(1, iconCount)
+                            val pm = packageManager
+                            // Enable the chosen alias FIRST so a launcher
+                            // entry always exists, then disable the others.
+                            pm.setComponentEnabledSetting(
+                                launcherAlias(index),
+                                PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                                PackageManager.DONT_KILL_APP
+                            )
+                            for (i in 1..iconCount) {
+                                if (i == index) continue
+                                pm.setComponentEnabledSetting(
+                                    launcherAlias(i),
+                                    PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                                    PackageManager.DONT_KILL_APP
+                                )
+                            }
+                            result.success(null)
+                        }
+                        "current" -> {
+                            val pm = packageManager
+                            var current = 1
+                            for (i in 1..iconCount) {
+                                val state = pm.getComponentEnabledSetting(launcherAlias(i))
+                                val enabled =
+                                    state == PackageManager.COMPONENT_ENABLED_STATE_ENABLED ||
+                                        (i == 1 && state ==
+                                            PackageManager.COMPONENT_ENABLED_STATE_DEFAULT)
+                                if (enabled) {
+                                    current = i
+                                    break
+                                }
+                            }
+                            result.success(current)
+                        }
+                        else -> result.notImplemented()
+                    }
+                } catch (e: Exception) {
+                    result.error("ICON_ERROR", e.message, null)
                 }
             }
     }

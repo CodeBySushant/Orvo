@@ -47,6 +47,9 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
+  # FEATURE (app icon): preview images for the launcher-icon picker.
+  assets:
+    - assets/icons/
   fonts:
     - family: PlusJakartaSans
       fonts:

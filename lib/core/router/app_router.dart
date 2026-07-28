@@ -14,6 +14,7 @@ import '../../features/library/screens/excluded_folders_screen.dart';
 import '../../features/player/screens/now_playing_screen.dart';
 import '../../features/playlists/screens/playlist_detail_screen.dart';
 import '../../features/search/search_screen.dart';
+import '../../features/settings/app_icon/app_icon.dart';
 import '../../features/settings/help/faq_screen.dart';
 import '../../features/settings/help/legal_screens.dart';
 import '../../features/settings/settings_screen.dart';
@@ -105,6 +106,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/excluded-folders',
         builder: (context, state) => const ExcludedFoldersScreen(),
+      ),
+      // FEATURE (app icon): launcher icon picker.
+      GoRoute(
+        path: '/app-icon',
+        builder: (context, state) => const AppIconScreen(),
       ),
       // FEATURE (help): Settings → Help section screens.
       GoRoute(

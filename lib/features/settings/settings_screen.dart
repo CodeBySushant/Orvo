@@ -121,6 +121,15 @@ class SettingsScreen extends ConsumerWidget {
               ),
             );
           }),
+          // FEATURE (app icon): Snapchat-style selectable launcher icon.
+          ListTile(
+            leading: const Icon(Icons.apps_rounded),
+            title: Text(t.appIcon),
+            subtitle:
+                Text(t.appIconSub, style: theme.textTheme.labelMedium),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => context.push('/app-icon'),
+          ),
           const SizedBox(height: 24),
           _SectionLabel(t.audio),
           ListTile(
