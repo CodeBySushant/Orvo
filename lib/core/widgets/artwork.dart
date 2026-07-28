@@ -104,12 +104,6 @@ class _Placeholder extends StatelessWidget {
   final String text; // ignored visually — see note above
   final ArtworkType type;
 
-  static const _bgGradient = LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [Color(0xFF6C3EF0), Color(0xFF3B2AA8)],
-  );
-
   @override
   Widget build(BuildContext context) {
     // REDESIGN v3.6: two standard covers.
@@ -117,10 +111,23 @@ class _Placeholder extends StatelessWidget {
     //  - Songs & artists get the clean minimal tile from the reference:
     //    a soft translucent square with a muted music-note glyph.
     if (type == ArtworkType.ALBUM) {
+      // FIX (themes): the cover gradient was a hardcoded brand violet, which
+      // clashed once skins / Material You changed the accent. It now derives
+      // from colorScheme.primary, so art-less album cards always match the
+      // active theme color.
+      final accent = Theme.of(context).colorScheme.primary;
+      final top = Color.lerp(accent, Colors.white, .08)!;
+      final bottom = Color.lerp(accent, Colors.black, .48)!;
       return Container(
-        decoration: const BoxDecoration(gradient: _bgGradient),
-        child: const CustomPaint(
-          painter: _VinylPainter(),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [top, bottom],
+          ),
+        ),
+        child: CustomPaint(
+          painter: _VinylPainter(accent),
           size: Size.infinite,
         ),
       );
@@ -143,7 +150,11 @@ class _Placeholder extends StatelessWidget {
 }
 
 class _VinylPainter extends CustomPainter {
-  const _VinylPainter();
+  const _VinylPainter(this.accent);
+
+  /// FIX (themes): the disc and center label are tinted from the active
+  /// theme accent instead of the hardcoded brand violet.
+  final Color accent;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -164,9 +175,10 @@ class _VinylPainter extends CustomPainter {
         ),
     );
 
-    // The record.
+    // The record — near-black with a whisper of the accent in it.
     final discR = s * .34;
-    canvas.drawCircle(c, discR, Paint()..color = const Color(0xFF161326));
+    canvas.drawCircle(
+        c, discR, Paint()..color = Color.lerp(accent, Colors.black, .82)!);
 
     // Rim highlight.
     canvas.drawCircle(
@@ -187,16 +199,19 @@ class _VinylPainter extends CustomPainter {
       canvas.drawCircle(c, discR * f, groove);
     }
 
-    // Center label — small gradient circle.
+    // Center label — small gradient circle in the accent.
     final labelR = discR * .36;
     canvas.drawCircle(
       c,
       labelR,
       Paint()
-        ..shader = const LinearGradient(
+        ..shader = LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF9F6BFF), Color(0xFF5B3DF5)],
+          colors: [
+            Color.lerp(accent, Colors.white, .35)!,
+            accent,
+          ],
         ).createShader(Rect.fromCircle(center: c, radius: labelR)),
     );
 
@@ -220,5 +235,6 @@ class _VinylPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _VinylPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _VinylPainter oldDelegate) =>
+      oldDelegate.accent != accent;
 }

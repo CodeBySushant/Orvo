@@ -34,7 +34,11 @@ class HomeDrawer extends ConsumerWidget {
 
     return Drawer(
       width: MediaQuery.of(context).size.width * .8,
-      backgroundColor: theme.scaffoldBackgroundColor,
+      // FIX (backgrounds): scaffoldBackgroundColor goes transparent while a
+      // wallpaper background is active, which made the open drawer
+      // see-through (text merging with the screen behind). surface is the
+      // exact same color in normal modes and always stays solid.
+      backgroundColor: theme.colorScheme.surface,
       child: Stack(
         children: [
           // Watermark — giant faint note + thin circle outlines (mockup).
