@@ -110,6 +110,8 @@ final lyricsProvider =
     artist: req.artist,
     album: req.album,
     durationSec: req.durationSec,
+    // FIX (#28): the filename rescues lookups when the tag title is junk.
+    path: req.path,
   );
   if (online == null) {
     return const LyricsResult(Lyrics.none, lookupFailed: true);
