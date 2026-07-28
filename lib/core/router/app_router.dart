@@ -14,6 +14,8 @@ import '../../features/library/screens/excluded_folders_screen.dart';
 import '../../features/player/screens/now_playing_screen.dart';
 import '../../features/playlists/screens/playlist_detail_screen.dart';
 import '../../features/search/search_screen.dart';
+import '../../features/settings/help/faq_screen.dart';
+import '../../features/settings/help/legal_screens.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/settings/skin_themes_screen.dart';
 import '../../shell/app_shell.dart';
@@ -103,6 +105,19 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/excluded-folders',
         builder: (context, state) => const ExcludedFoldersScreen(),
+      ),
+      // FEATURE (help): Settings → Help section screens.
+      GoRoute(
+        path: '/faq',
+        builder: (context, state) => const FaqScreen(),
+      ),
+      GoRoute(
+        path: '/privacy-policy',
+        builder: (context, state) => const PrivacyPolicyScreen(),
+      ),
+      GoRoute(
+        path: '/terms',
+        builder: (context, state) => const TermsOfUseScreen(),
       ),
       // Full-screen player slides up over everything, including the shell.
       GoRoute(

@@ -9,6 +9,7 @@ import '../../core/widgets/artwork.dart';
 import '../library/providers/library_providers.dart';
 import '../lyrics/lyrics_provider.dart';
 import '../player/providers/audio_settings.dart';
+import 'help/legal_screens.dart' show kOrvoVersion;
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -276,19 +277,34 @@ class SettingsScreen extends ConsumerWidget {
             );
           }),
           const SizedBox(height: 24),
-          _SectionLabel(t.about),
-          const ListTile(
-            leading: Icon(Icons.info_outline_rounded),
-            title: Text('Orvo'),
-            subtitle: Text('Version 0.1.0 · Phase 1 core'),
+          // FEATURE (help): reference-style Help section — FAQ, Privacy
+          // policy, Terms of use, and Version. (Rate us / Feedback /
+          // subscription rows from the reference are intentionally omitted.)
+          _SectionLabel(t.help),
+          ListTile(
+            leading: const Icon(Icons.help_outline_rounded),
+            title: Text(t.faq),
+            subtitle: Text(t.faqSub, style: theme.textTheme.labelMedium),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => context.push('/faq'),
           ),
           ListTile(
-            leading: const Icon(Icons.lock_outline_rounded),
-            title: Text(t.privacy),
-            subtitle: const Text(
-                'Fully offline by default. Your music and listening data never '
-                'leave this device. If Online lyrics is on, only song titles, '
-                'artists and durations are sent to LRCLIB.'),
+            leading: const Icon(Icons.shield_outlined),
+            title: Text(t.privacyPolicy),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => context.push('/privacy-policy'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.description_outlined),
+            title: Text(t.termsOfUse),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => context.push('/terms'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.info_outline_rounded),
+            title: Text(t.version),
+            subtitle:
+                Text(kOrvoVersion, style: theme.textTheme.labelMedium),
           ),
         ],
       ),
