@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../core/i18n/l10n.dart';
 import '../features/equalizer/equalizer_provider.dart';
+import '../features/home/home_drawer.dart';
 import '../features/library/providers/exclusions_bootstrap.dart';
 import '../features/player/widgets/mini_player.dart';
 import '../features/player/data/playback_persistence.dart';
@@ -81,6 +82,20 @@ class AppShell extends ConsumerWidget {
     final t = ref.watch(l10nProvider);
 
     return Scaffold(
+      // FIX (drawer height): the drawer used to live on HomeScreen's inner
+      // Scaffold, which only spans the shell's BODY — the mini player and
+      // navigation bar sit outside it in bottomNavigationBar, so the drawer
+      // physically could not paint over that region and stopped short of
+      // the bottom edge, leaving a broken-looking gap. Hosting it on the
+      // shell's Scaffold makes it one continuous panel over the full
+      // screen height (over the mini player and nav bar too). Same Drawer
+      // widget, same styling — nothing visual changed.
+      drawer: const HomeDrawer(),
+      // Edge-swipe open stays a HOME-only gesture, exactly as before —
+      // on Library it would fight the tab swipe, so it's off elsewhere
+      // (the drawer there is unreachable anyway; only Home has the menu
+      // button).
+      drawerEnableOpenDragGesture: _index == 0,
       body: child,
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,

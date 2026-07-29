@@ -19,7 +19,6 @@ import '../playlists/providers/playlist_providers.dart';
 import '../playlists/widgets/add_to_playlist_sheet.dart'
     show promptPlaylistName;
 import '../stats/play_stats.dart';
-import 'home_drawer.dart';
 
 // ---------------------------------------------------------------------------
 // REDESIGN v3 — mockup home.
@@ -53,37 +52,40 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final songsAsync = ref.watch(songsProvider);
 
-    return Scaffold(
-      drawer: const HomeDrawer(),
-      body: SafeArea(
-        bottom: false,
-        child: songsAsync.when(
-          loading: () => const _ScanningState(),
-          error: (e, _) => _EmptyState(
-            title: 'Something went wrong',
-            body: 'The library scan failed. Pull to try again.',
-            onRefresh: () => ref.invalidate(rawSongsProvider),
-          ),
-          data: (songs) {
-            if (songs.isEmpty) {
-              return _EmptyState(
-                title: 'No music yet',
-                body:
-                    'Add audio files to this device and Orvo will pick them up.',
-                onRefresh: () => ref.invalidate(rawSongsProvider),
-              );
-            }
-            return RefreshIndicator(
-              onRefresh: () async {
-                ref.invalidate(rawSongsProvider);
-                ref.invalidate(albumsProvider);
-                ref.invalidate(artistsProvider);
-                ref.invalidate(genresProvider);
-              },
-              child: const _HomeBody(),
-            );
-          },
+    // FIX (drawer height): HomeScreen no longer hosts its own Scaffold —
+    // the drawer moved up to AppShell so it can span the FULL screen
+    // height (an inner Scaffold only covers the shell's body, which is
+    // why the drawer used to stop above the mini player / nav bar). The
+    // menu button's Scaffold.of(context) now resolves to the shell's
+    // Scaffold, which owns the drawer.
+    return SafeArea(
+      bottom: false,
+      child: songsAsync.when(
+        loading: () => const _ScanningState(),
+        error: (e, _) => _EmptyState(
+          title: 'Something went wrong',
+          body: 'The library scan failed. Pull to try again.',
+          onRefresh: () => ref.invalidate(rawSongsProvider),
         ),
+        data: (songs) {
+          if (songs.isEmpty) {
+            return _EmptyState(
+              title: 'No music yet',
+              body:
+                  'Add audio files to this device and Orvo will pick them up.',
+              onRefresh: () => ref.invalidate(rawSongsProvider),
+            );
+          }
+          return RefreshIndicator(
+            onRefresh: () async {
+              ref.invalidate(rawSongsProvider);
+              ref.invalidate(albumsProvider);
+              ref.invalidate(artistsProvider);
+              ref.invalidate(genresProvider);
+            },
+            child: const _HomeBody(),
+          );
+        },
       ),
     );
   }
