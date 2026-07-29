@@ -510,8 +510,20 @@ class _HomeSongTile extends ConsumerWidget {
 }
 
 // ---------------------------------------------------------------------------
-// 4 — My Playlist: leading “+” card, then existing playlists
+// 4 — My Playlist: leading "+" card, then existing playlists
 // ---------------------------------------------------------------------------
+
+/// REDESIGN (playlist cards): curated premium duotones — [bright, deep]
+/// pairs picked to sit richly on the midnight base, instead of the flat
+/// washed-out genre tile colors. Stable per playlist name.
+const List<List<Color>> _playlistGradients = [
+  [Color(0xFF6D5DF6), Color(0xFF241F5E)], // indigo → midnight violet
+  [Color(0xFFFF5C74), Color(0xFF4E0F1C)], // scarlet → deep garnet
+  [Color(0xFF2FB7A8), Color(0xFF0A322E)], // teal → deep sea
+  [Color(0xFFF0A94B), Color(0xFF4C2A0B)], // amber → dark bronze
+  [Color(0xFFE0559E), Color(0xFF430E33)], // magenta → deep plum
+  [Color(0xFF5A8DFF), Color(0xFF11224A)], // azure → deep navy
+];
 
 class _MyPlaylistRow extends ConsumerWidget {
   const _MyPlaylistRow({required this.playlists});
@@ -555,38 +567,108 @@ class _MyPlaylistRow extends ConsumerWidget {
             );
           }
           final playlist = playlists[i - 1];
-          final color = AppColors.tileColorFor(playlist.name);
+          // REDESIGN (playlist cards): the old flat translucent tile read
+          // washed-out. Created playlists now get a premium card — a rich
+          // duotone gradient from a curated palette (stable per name), a
+          // soft top-left sheen, a hairline border, an oversized faint
+          // watermark glyph bleeding off the corner (the hero-card motif),
+          // a frosted icon chip, and tighter editorial type. The "+" create
+          // card and the row's size/position are untouched.
+          final colors = _playlistGradients[
+              playlist.name.hashCode.abs() % _playlistGradients.length];
+          final bright = colors[0];
+          final deep = colors[1];
           return Pressable(
             onTap: () => context.go('/playlist/${playlist.id}'),
             child: Container(
               width: 116,
-              padding: const EdgeInsets.all(12),
+              clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(24),
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [color.withOpacity(.9), color.withOpacity(.55)],
+                  colors: [
+                    Color.lerp(bright, Colors.white, .08)!,
+                    bright,
+                    deep,
+                  ],
+                  stops: const [0, .38, 1],
                 ),
+                border: Border.all(color: Colors.white.withOpacity(.14)),
+                boxShadow: [
+                  BoxShadow(
+                    color: deep.withOpacity(.5),
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Stack(
                 children: [
-                  const Icon(Icons.music_note_rounded,
-                      color: Colors.white, size: 24),
-                  const Spacer(),
-                  Text(playlist.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 2),
-                  Text(
-                    ref.watch(l10nProvider).nSongsExact(playlist.songCount),
-                    style: TextStyle(
-                        color: Colors.white.withOpacity(.85), fontSize: 11.5),
+                  // Oversized faint glyph bleeding off the corner.
+                  Positioned(
+                    right: -16,
+                    bottom: -18,
+                    child: Icon(Icons.queue_music_rounded,
+                        size: 84, color: Colors.white.withOpacity(.12)),
+                  ),
+                  // Soft sheen in the top-left for depth.
+                  Positioned(
+                    top: -34,
+                    left: -34,
+                    child: Container(
+                      width: 96,
+                      height: 96,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            Colors.white.withOpacity(.20),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Frosted icon chip.
+                        Container(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(.16),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                                color: Colors.white.withOpacity(.18)),
+                          ),
+                          child: const Icon(Icons.music_note_rounded,
+                              color: Colors.white, size: 17),
+                        ),
+                        const Spacer(),
+                        Text(playlist.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -.2)),
+                        const SizedBox(height: 3),
+                        Text(
+                          ref.watch(l10nProvider)
+                              .nSongsExact(playlist.songCount),
+                          style: TextStyle(
+                              color: Colors.white.withOpacity(.78),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
