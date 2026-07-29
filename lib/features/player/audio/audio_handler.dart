@@ -394,6 +394,7 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       final safeIndex = index.clamp(0, items.length - 1);
 
       _rebuildDepth++;
+      var startPlayback = false;
       try {
         // Publish queue + current item ATOMICALLY, before playback starts.
         queue.add(items);
@@ -412,7 +413,7 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           initialIndex: safeIndex,
           initialPosition: position,
         );
-        if (resume) await _player.play();
+        startPlayback = resume;
       } on PlayerInterruptedException {
         // Superseded by a newer load (e.g. stop()) — the newer operation
         // owns the player now; not a user-facing error.
@@ -424,6 +425,22 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       } finally {
         _rebuildDepth--;
       }
+
+      // CRITICAL FIX (frozen controls): just_audio's play() Future does NOT
+      // complete when playback starts — per its own docs it "completes when
+      // the playback completes or is paused or stopped", and returns
+      // immediately only "if the player is already playing". Awaiting it
+      // INSIDE the guarded region above therefore kept _rebuildDepth > 0 and
+      // held _rebuildLock for the ENTIRE listening session whenever a queue
+      // load started from a paused / fresh state: every playbackState and
+      // currentIndex event was gated out (play/pause icon, seek bar, titles,
+      // artwork, notification all frozen) and every subsequent queue action
+      // deadlocked behind the lock — the "all controls dead" regression.
+      // Playback is now started fire-and-forget, OUTSIDE the guard, exactly
+      // like every other transport call in this handler; play() flips the
+      // playing flag synchronously, so the broadcast below already reports
+      // the correct state.
+      if (startPlayback) unawaited(_player.play());
 
       // Re-derive the truth from the player now that the swap is done —
       // covers any index adjustment the platform made during load.
