@@ -63,6 +63,10 @@ class SongTile extends ConsumerWidget {
                   size: 48,
                   radius: 10,
                   queryScale: 200,
+                  // FIX: while this row is the current song, the equalizer
+                  // bars are drawn on top — hide the placeholder's music
+                  // note so two icons don't stack on art-less tracks.
+                  showPlaceholderIcon: !isCurrent,
                 ),
                 if (isCurrent)
                   Container(

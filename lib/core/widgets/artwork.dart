@@ -49,6 +49,7 @@ class Artwork extends StatelessWidget {
     this.size,
     this.radius = 12,
     this.queryScale = 400,
+    this.showPlaceholderIcon = true,
   });
 
   final int id;
@@ -57,6 +58,13 @@ class Artwork extends StatelessWidget {
   final double? size;
   final double radius;
   final int queryScale;
+
+  /// FIX (now-playing tiles): when the equalizer bars overlay this artwork
+  /// for the current song, an art-less track's placeholder music-note glyph
+  /// showed THROUGH the bars — two icons stacked on top of each other.
+  /// Passing false renders the placeholder as a clean blank tile instead.
+  /// Tracks with real artwork are unaffected.
+  final bool showPlaceholderIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -77,7 +85,11 @@ class Artwork extends StatelessWidget {
                 filterQuality: FilterQuality.medium,
               );
             }
-            return _Placeholder(text: fallbackText, type: type);
+            return _Placeholder(
+              text: fallbackText,
+              type: type,
+              showIcon: showPlaceholderIcon,
+            );
           },
         ),
       ),
@@ -100,9 +112,17 @@ class Artwork extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _Placeholder extends StatelessWidget {
-  const _Placeholder({required this.text, required this.type});
+  const _Placeholder({
+    required this.text,
+    required this.type,
+    this.showIcon = true,
+  });
   final String text; // ignored visually — see note above
   final ArtworkType type;
+
+  /// FIX (now-playing tiles): false = blank tile, no music-note glyph —
+  /// used while the equalizer bars are drawn on top of this placeholder.
+  final bool showIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -134,6 +154,10 @@ class _Placeholder extends StatelessWidget {
     }
 
     final onSurface = Theme.of(context).colorScheme.onSurface;
+    // FIX (now-playing tiles): no glyph under the equalizer-bars overlay.
+    if (!showIcon) {
+      return Container(color: onSurface.withOpacity(.07));
+    }
     return LayoutBuilder(builder: (context, constraints) {
       final side = constraints.biggest.shortestSide;
       return Container(
