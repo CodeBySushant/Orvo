@@ -39,6 +39,18 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Original order, remembered while shuffle is on so it can be restored.
   List<MediaItem>? _unshuffledQueue;
 
+  /// FIX (UI desync): >0 while a queue rebuild is swapping audio sources.
+  /// Player events raised in that window still describe the OLD playlist —
+  /// resolving their indices against the freshly published queue put the
+  /// wrong MediaItem into the notification / mini player / Now Playing.
+  int _rebuildDepth = 0;
+
+  /// FIX (UI desync): serializes queue rebuilds so rapid actions (tap a
+  /// song → toggle shuffle → tap another song) can never interleave two
+  /// source swaps and leave the published queue paired with a different
+  /// audio source than the one actually playing.
+  Future<void> _rebuildLock = Future<void>.value();
+
   /// When true, play/pause/skip use short volume ramps ("smooth transitions").
   /// True overlapping crossfade needs a dual-player architecture — deferred.
   bool fadeEnabled = false;
@@ -186,9 +198,13 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     // items are being added from addStream". That silently killed session
     // restore (restoreState → _broadcastState) and shuffle-icon updates.
     // A plain listener forwards the same events without locking the subject.
-    _player.playbackEventStream
-        .map(_transformEvent)
-        .listen(playbackState.add, onError: (Object _, StackTrace __) {
+    _player.playbackEventStream.listen((event) {
+      // FIX (UI desync): events raised mid-rebuild describe the OLD audio
+      // source (stale queueIndex / duration); _rebuild broadcasts a fresh
+      // state itself the moment the swap completes.
+      if (_rebuildDepth > 0) return;
+      playbackState.add(_transformEvent(event));
+    }, onError: (Object _, StackTrace __) {
       // Player errors are surfaced by the dedicated error listener below.
     });
 
@@ -223,6 +239,11 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
     // Keep the notification's current item in sync with the player index.
     _player.currentIndexStream.listen((index) {
+      // FIX (UI desync): mid-rebuild index events belong to the OLD
+      // playlist. Mapping e.g. old index 42 onto the NEW queue flashed a
+      // random wrong track into mediaItem. _rebuild publishes and re-syncs
+      // the mediaItem itself around the swap, so these are safely dropped.
+      if (_rebuildDepth > 0) return;
       final q = queue.value;
       if (index != null && index >= 0 && index < q.length) {
         mediaItem.add(q[index]);
@@ -327,34 +348,103 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   /// Rebuilds the audio source from [items], seeking to the given index +
-  /// position. Used by shuffle toggling and session restore.
+  /// position. Used by queue loading, shuffle toggling and session restore.
+  ///
+  /// FIX (UI desync) — this is the heart of the "audio plays song A, UI
+  /// shows song B" bug. Three guarantees now hold:
+  ///
+  ///  1. SINGLE SOURCE OF TRUTH, PUBLISHED BEFORE PLAYBACK: the queue and
+  ///     the current MediaItem are published together, synchronously,
+  ///     BEFORE the player is touched. The UI (mini player, Now Playing,
+  ///     notification, lock screen, widget — all fed from `mediaItem`)
+  ///     shows the correct track from the first frame, instead of waiting
+  ///     for a player callback that may never come: just_audio's
+  ///     currentIndexStream is DISTINCT, so swapping to a new queue whose
+  ///     start index NUMERICALLY equals the old one (e.g. index 0 → 0 on
+  ///     every "Shuffle all", or tapping the Nth song of album B while the
+  ///     Nth song of album A was playing) emitted NOTHING — mediaItem kept
+  ///     the previous song forever while the new audio played.
+  ///
+  ///  2. STALE EVENTS CAN'T CROSS QUEUES: while the source swap is in
+  ///     flight (_rebuildDepth > 0), index/playback events from the old
+  ///     playlist are dropped instead of being resolved against the new
+  ///     queue. After the swap, _syncMediaItem() + _broadcastState()
+  ///     re-derive the truth directly from the player.
+  ///
+  ///  3. REBUILDS ARE SERIALIZED: rapid taps (song → shuffle → another
+  ///     song) queue up behind _rebuildLock instead of interleaving two
+  ///     setAudioSource calls, which could pair the published queue with
+  ///     the loser's audio source.
   Future<void> _rebuild(
     List<MediaItem> items, {
     required int index,
     Duration position = Duration.zero,
     bool resume = false,
   }) async {
-    await _cancelCrossfade();
-    queue.add(items);
-    _playlist = ConcatenatingAudioSource(
-      useLazyPreparation: true,
-      children: [
-        for (final item in items)
-          AudioSource.uri(Uri.parse(item.id), tag: item),
-      ],
-    );
+    if (items.isEmpty) return;
+
+    // Serialize: wait for any in-flight rebuild to finish first.
+    final previous = _rebuildLock;
+    final gate = Completer<void>();
+    _rebuildLock = gate.future;
+    await previous;
+
     try {
-      await _player.setAudioSource(
-        _playlist!,
-        initialIndex: index.clamp(0, items.length - 1),
-        initialPosition: position,
-      );
-      if (resume) await _player.play();
-    } catch (_) {
-      // FIX (#6): corrupt / missing file at the target index — tell the
-      // user instead of failing silently.
-      _errorController.add("Couldn't start playback — the file may be "
-          'missing or corrupt.');
+      await _cancelCrossfade();
+      final safeIndex = index.clamp(0, items.length - 1);
+
+      _rebuildDepth++;
+      try {
+        // Publish queue + current item ATOMICALLY, before playback starts.
+        queue.add(items);
+        mediaItem.add(items[safeIndex]);
+        _enrichNotificationArt(items[safeIndex]);
+
+        _playlist = ConcatenatingAudioSource(
+          useLazyPreparation: true,
+          children: [
+            for (final item in items)
+              AudioSource.uri(Uri.parse(item.id), tag: item),
+          ],
+        );
+        await _player.setAudioSource(
+          _playlist!,
+          initialIndex: safeIndex,
+          initialPosition: position,
+        );
+        if (resume) await _player.play();
+      } on PlayerInterruptedException {
+        // Superseded by a newer load (e.g. stop()) — the newer operation
+        // owns the player now; not a user-facing error.
+      } catch (_) {
+        // FIX (#6): corrupt / missing file at the target index — tell the
+        // user instead of failing silently.
+        _errorController.add("Couldn't start playback — the file may be "
+            'missing or corrupt.');
+      } finally {
+        _rebuildDepth--;
+      }
+
+      // Re-derive the truth from the player now that the swap is done —
+      // covers any index adjustment the platform made during load.
+      _syncMediaItem();
+      _broadcastState();
+    } finally {
+      gate.complete();
+    }
+  }
+
+  /// FIX (UI desync): forces `mediaItem` to match the track the player is
+  /// ACTUALLY on. Needed because currentIndexStream is distinct and stays
+  /// silent when a queue swap lands on the same numeric index.
+  void _syncMediaItem() {
+    final q = queue.value;
+    final i = _player.currentIndex;
+    if (i == null || i < 0 || i >= q.length) return;
+    final item = q[i];
+    if (mediaItem.value?.id != item.id) {
+      mediaItem.add(item);
+      _enrichNotificationArt(item);
     }
   }
 
@@ -372,6 +462,31 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _shuffleEnabled = false;
     _unshuffledQueue = null;
     await _rebuild(items, index: startIndex, resume: autoPlay);
+  }
+
+  /// FIX (UI desync): loads [items] as a SHUFFLED queue in ONE rebuild —
+  /// the track at [currentIndex] plays first, the rest follow in random
+  /// order, and the original order is remembered so turning shuffle off
+  /// restores it.
+  ///
+  /// Replaces the old two-step dance (loadQueue → setShuffleMode) used by
+  /// "Shuffle all" and by tapping a song while shuffle was on: two full
+  /// source swaps back to back, racing each other's index events — and the
+  /// second swap always landed on index 0, exactly the case where the
+  /// distinct currentIndexStream stays silent and the UI kept the old song.
+  Future<void> loadShuffled(
+    List<MediaItem> items, {
+    required int currentIndex,
+    bool autoPlay = true,
+  }) async {
+    if (items.isEmpty) return;
+    final safe = currentIndex.clamp(0, items.length - 1);
+    final current = items[safe];
+    final rest = List.of(items)..removeAt(safe);
+    rest.shuffle(Random());
+    _shuffleEnabled = true;
+    _unshuffledQueue = List.of(items);
+    await _rebuild([current, ...rest], index: 0, resume: autoPlay);
   }
 
   /// FIX (#5): restores a previously persisted session — queue, position,

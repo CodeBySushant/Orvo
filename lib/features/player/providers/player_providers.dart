@@ -104,27 +104,31 @@ class PlayerController {
   final OrvoAudioHandler _handler;
 
   Future<void> playFrom(List<Song> songs, int index) async {
-    // FIX (#17): tapping a song no longer silently resets the user's
-    // shuffle preference — if shuffle was on, the new queue is shuffled
-    // around the chosen song.
-    final keepShuffle = _handler.shuffleEnabled;
-    await _handler.loadQueue(
-      songs.map(toMediaItem).toList(growable: false),
-      startIndex: index,
-    );
-    if (keepShuffle) {
-      await _handler.setShuffleMode(AudioServiceShuffleMode.all);
+    final items = songs.map(toMediaItem).toList(growable: false);
+    // FIX (#17): tapping a song keeps the user's shuffle preference.
+    // FIX (UI desync): the shuffled case now goes through loadShuffled —
+    // a SINGLE queue rebuild — instead of loadQueue + setShuffleMode (two
+    // full source swaps racing each other, with the second always landing
+    // on index 0 where currentIndexStream stays silent and the UI kept
+    // showing the previous song).
+    if (_handler.shuffleEnabled) {
+      await _handler.loadShuffled(items, currentIndex: index);
+    } else {
+      await _handler.loadQueue(items, startIndex: index);
     }
   }
 
   Future<void> shuffleAll(List<Song> songs) async {
     if (songs.isEmpty) return;
-    final shuffled = List<Song>.from(songs)..shuffle(Random());
-    await _handler.loadQueue(
-      shuffled.map(toMediaItem).toList(growable: false),
+    final items = songs.map(toMediaItem).toList(growable: false);
+    // FIX (UI desync): one rebuild with a random starting track, instead
+    // of loadQueue(shuffled) + setShuffleMode (which reshuffled AND
+    // rebuilt a second time). The shuffle toggle still lights up because
+    // loadShuffled sets the handler's shuffle flag before broadcasting.
+    await _handler.loadShuffled(
+      items,
+      currentIndex: Random().nextInt(items.length),
     );
-    // Light up the shuffle toggle so "Shuffle all" reads as shuffle mode.
-    await _handler.setShuffleMode(AudioServiceShuffleMode.all);
   }
 
   Future<void> playNext(Song song) =>
