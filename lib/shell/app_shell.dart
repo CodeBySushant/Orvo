@@ -6,6 +6,7 @@ import '../core/i18n/l10n.dart';
 import '../features/equalizer/equalizer_provider.dart';
 import '../features/home/home_drawer.dart';
 import '../features/library/providers/exclusions_bootstrap.dart';
+import '../features/metadata/online_artwork.dart';
 import '../features/player/widgets/mini_player.dart';
 import '../features/player/data/playback_persistence.dart';
 import '../features/player/providers/audio_settings.dart';
@@ -59,6 +60,9 @@ class AppShell extends ConsumerWidget {
     // FIX (#2): apply persisted EQ settings as soon as playback starts,
     // instead of waiting for the user to open the equalizer screen.
     ref.watch(equalizerAutoAttachProvider);
+    // FEATURE (online artwork): install the missing-cover fallback and keep
+    // its song catalog in sync with the library scan.
+    ref.watch(onlineArtworkBinderProvider);
     // FEATURE (#25): apply first-run smart folder exclusions after the
     // first raw scan (WhatsApp audio, recordings, notifications…).
     ref.watch(exclusionDefaultsProvider);

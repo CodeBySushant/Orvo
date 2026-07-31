@@ -152,6 +152,9 @@ class L10n {
   String get lyricsFolder => _s(['Lyrics folder', 'बोल फ़ोल्डर', 'Carpeta de letras', '歌詞フォルダ', '가사 폴더', 'Songtext-Ordner', 'Dossier de paroles', 'Папка текстов']);
   String get onlineLyrics => _s(['Online lyrics', 'ऑनलाइन बोल', 'Letra en línea', 'オンライン歌詞', '온라인 가사', 'Online-Songtexte', 'Paroles en ligne', 'Онлайн-тексты']);
   String get onlineLyricsSub => _s(['Fetch missing lyrics from LRCLIB and save them for offline use', 'LRCLIB से बोल लाकर ऑफ़लाइन के लिए सहेजें', 'Descarga letras de LRCLIB y guárdalas sin conexión', 'LRCLIBから歌詞を取得しオフライン保存', 'LRCLIB에서 가사를 가져와 오프라인 저장', 'Songtexte von LRCLIB laden und offline speichern', 'Récupérer les paroles via LRCLIB (hors ligne ensuite)', 'Загрузка текстов из LRCLIB для офлайна']);
+  // FEATURE (online artwork): missing covers via MusicBrainz + Cover Art Archive.
+  String get onlineArtwork => _s(['Online album art', 'ऑनलाइन एल्बम आर्ट', 'Carátulas en línea', 'オンラインアルバムアート', '온라인 앨범 아트', 'Online-Albumcover', 'Pochettes en ligne', 'Онлайн-обложки']);
+  String get onlineArtworkSub => _s(['Find missing covers via MusicBrainz and save them for offline use', 'MusicBrainz से गुम कवर ढूँढें और ऑफ़लाइन के लिए सहेजें', 'Busca carátulas que faltan en MusicBrainz y guárdalas sin conexión', 'MusicBrainzで不足カバーを取得しオフライン保存', 'MusicBrainz에서 누락된 커버를 찾아 오프라인 저장', 'Fehlende Cover über MusicBrainz laden und offline speichern', 'Trouver les pochettes manquantes via MusicBrainz (hors ligne ensuite)', 'Поиск обложек через MusicBrainz для офлайна']);
   String get about => _s(['About', 'परिचय', 'Acerca de', '情報', '정보', 'Über', 'À propos', 'О приложении']);
   String get privacy => _s(['Privacy', 'गोपनीयता', 'Privacidad', 'プライバシー', '개인정보', 'Datenschutz', 'Confidentialité', 'Конфиденциальность']);
   String get excludedFolders => _s(['Excluded folders', 'बाहर रखे फ़ोल्डर', 'Carpetas excluidas', '除外フォルダ', '제외된 폴더', 'Ausgeschlossene Ordner', 'Dossiers exclus', 'Исключённые папки']);

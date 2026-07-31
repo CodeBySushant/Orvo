@@ -8,6 +8,7 @@ import '../../core/theme/theme_provider.dart';
 import '../../core/widgets/artwork.dart';
 import '../library/providers/library_providers.dart';
 import '../lyrics/lyrics_provider.dart';
+import '../metadata/online_artwork.dart';
 import '../player/providers/audio_settings.dart';
 import 'help/legal_screens.dart' show kOrvoVersion;
 
@@ -287,8 +288,8 @@ class SettingsScreen extends ConsumerWidget {
                     },
             );
           }),
-          // FEATURE (#21): opt-in online lyrics (LRCLIB). Off by default so
-          // the no-network privacy promise holds unless the user opts in.
+          // FEATURE (#21): online lyrics (LRCLIB) — on by default, the
+          // toggle turns all lyric network lookups off.
           Consumer(builder: (context, ref, _) {
             final online = ref.watch(onlineLyricsProvider);
             return SwitchListTile(
@@ -301,6 +302,22 @@ class SettingsScreen extends ConsumerWidget {
               value: online,
               onChanged: (v) =>
                   ref.read(onlineLyricsProvider.notifier).set(v),
+            );
+          }),
+          // FEATURE (online artwork): missing covers via MusicBrainz + the
+          // Cover Art Archive, cached on-device.
+          Consumer(builder: (context, ref, _) {
+            final online = ref.watch(onlineArtworkProvider);
+            return SwitchListTile(
+              secondary: const Icon(Icons.image_search_rounded),
+              title: Text(ref.watch(l10nProvider).onlineArtwork),
+              subtitle: Text(
+                ref.watch(l10nProvider).onlineArtworkSub,
+                style: theme.textTheme.labelMedium,
+              ),
+              value: online,
+              onChanged: (v) =>
+                  ref.read(onlineArtworkProvider.notifier).set(v),
             );
           }),
           const SizedBox(height: 24),

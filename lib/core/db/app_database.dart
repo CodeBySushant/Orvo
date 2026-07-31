@@ -17,7 +17,7 @@ class AppDatabase {
     final path = p.join(await getDatabasesPath(), 'orvo.db');
     return openDatabase(
       path,
-      version: 4,
+      version: 5,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: (db, version) async {
         await db.execute('''
@@ -52,6 +52,7 @@ class AppDatabase {
             'CREATE INDEX idx_last_played ON play_stats(last_played_at DESC)');
         await _createPlayerState(db);
         await _createLyricsCache(db);
+        await _createOnlineArt(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         // FIX (#5): v2 adds the persisted playback session.
@@ -89,6 +90,11 @@ class AppDatabase {
         if (oldVersion < 4) {
           await _createLyricsCache(db);
         }
+        // FEATURE (online artwork): v5 adds the cover cache — art fetched
+        // once from the Cover Art Archive, then served fully offline.
+        if (oldVersion < 5) {
+          await _createOnlineArt(db);
+        }
       },
     );
   }
@@ -109,6 +115,18 @@ class AppDatabase {
           song_id INTEGER PRIMARY KEY,
           synced TEXT,
           plain TEXT,
+          found INTEGER NOT NULL DEFAULT 0,
+          fetched_at INTEGER NOT NULL
+        )
+      ''');
+
+  // FEATURE (online artwork): covers fetched from the Cover Art Archive,
+  // cached per media-store song id (500px, JPEG/PNG bytes). found = 0 rows
+  // are negative-cache entries with a TTL enforced by the fetcher.
+  static Future<void> _createOnlineArt(Database db) => db.execute('''
+        CREATE TABLE IF NOT EXISTS online_art(
+          song_id INTEGER PRIMARY KEY,
+          art BLOB,
           found INTEGER NOT NULL DEFAULT 0,
           fetched_at INTEGER NOT NULL
         )

@@ -11,6 +11,14 @@ class ArtworkCache {
   ArtworkCache._();
   static final ArtworkCache instance = ArtworkCache._();
 
+  /// FEATURE (online artwork): optional fallback consulted when the media
+  /// store has no embedded art for a SONG. Installed at app start by the
+  /// metadata feature (see onlineArtworkBinderProvider); when null, behavior
+  /// is exactly as before. The fallback's results are definitive (found art,
+  /// cached art, or a cached "nothing exists"), so they're safe to keep in
+  /// this LRU like any media-store result.
+  static Future<Uint8List?> Function(int songId)? onlineFallback;
+
   final OnAudioQuery _query = OnAudioQuery();
   final LinkedHashMap<String, Uint8List?> _cache = LinkedHashMap();
   final Map<String, Future<Uint8List?>> _inflight = {};
@@ -27,7 +35,20 @@ class ArtworkCache {
     return _inflight[key] ??= _query
         .queryArtwork(id, type, size: size, quality: 100)
         .catchError((_) => null as Uint8List?)
-        .then((bytes) {
+        .then((bytes) async {
+      // FEATURE (online artwork): embedded / media-store art always wins;
+      // the online path only fills genuine gaps, and only for songs.
+      if ((bytes == null || bytes.isEmpty) &&
+          type == ArtworkType.AUDIO &&
+          onlineFallback != null) {
+        try {
+          bytes = await onlineFallback!(id);
+        } catch (_) {
+          // Artwork must never break the UI.
+        }
+      }
+      return bytes;
+    }).then((bytes) {
       _inflight.remove(key);
       _cache[key] = bytes;
       if (_cache.length > _maxEntries) _cache.remove(_cache.keys.first);
