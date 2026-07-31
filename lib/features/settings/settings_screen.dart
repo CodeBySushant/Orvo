@@ -232,6 +232,24 @@ class SettingsScreen extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () => context.push('/excluded-folders'),
           ),
+          // FEATURE (duplicate finder): find & remove duplicate songs.
+          ListTile(
+            leading: const Icon(Icons.copy_all_rounded),
+            title: Text(t.duplicateFinder),
+            subtitle: Text(t.duplicateFinderSub,
+                style: theme.textTheme.labelMedium),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => context.push('/duplicates'),
+          ),
+          // FEATURE (backup): backup & restore hub.
+          ListTile(
+            leading: const Icon(Icons.add_to_drive_rounded),
+            title: Text(t.backupRestore),
+            subtitle: Text(t.backupRestoreSub,
+                style: theme.textTheme.labelMedium),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => context.push('/backup'),
+          ),
           // FIX (#10): scoped storage blocks reading .lrc files owned by
           // other apps on Android 11+; a picked folder with a persisted SAF
           // grant makes sidecar lyrics work again.

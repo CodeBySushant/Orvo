@@ -16,7 +16,7 @@ import '../player/providers/sleep_timer.dart';
 // icon + label rows. Only features Orvo actually has are listed:
 //
 //   Themes · Equalizer · Sleep Timer · Rescan Library ·
-//   Excluded Folders · Settings
+//   Excluded Folders · Duplicate Finder · Backup & Restore · Settings
 //
 // (The mockup's Upgrade to Pro / Drive Mode / ad rows are intentionally
 // not replicated.)
@@ -136,6 +136,26 @@ class HomeDrawer extends ConsumerWidget {
                   onTap: () {
                     Navigator.pop(context);
                     context.push('/excluded-folders');
+                  },
+                ),
+                // FEATURE (duplicate finder): remove duplicate copies.
+                _DrawerItem(
+                  icon: Icons.copy_all_rounded,
+                  label: t.duplicateFinder,
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.push('/duplicates');
+                  },
+                ),
+                // FEATURE (backup): the Drive glyph signals "your data is
+                // safe in the cloud" — the system picker really does offer
+                // Google Drive as a save destination.
+                _DrawerItem(
+                  icon: Icons.add_to_drive_rounded,
+                  label: t.backupRestore,
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.push('/backup');
                   },
                 ),
                 _DrawerItem(

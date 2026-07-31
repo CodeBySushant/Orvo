@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/backup/backup_screen.dart';
 import '../../features/home/home_screen.dart';
 import '../../features/home/song_collection_screen.dart';
+import '../../features/library/screens/duplicate_finder_screen.dart';
 import '../../features/library/screens/album_detail_screen.dart';
 import '../../features/library/screens/artist_detail_screen.dart';
 import '../../features/equalizer/equalizer_screen.dart';
@@ -106,6 +108,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/excluded-folders',
         builder: (context, state) => const ExcludedFoldersScreen(),
+      ),
+      // FEATURE (backup): backup & restore hub.
+      GoRoute(
+        path: '/backup',
+        builder: (context, state) => const BackupRestoreScreen(),
+      ),
+      // FEATURE (duplicate finder): find & remove duplicate songs.
+      GoRoute(
+        path: '/duplicates',
+        builder: (context, state) => const DuplicateFinderScreen(),
       ),
       // FEATURE (app icon): launcher icon picker.
       GoRoute(

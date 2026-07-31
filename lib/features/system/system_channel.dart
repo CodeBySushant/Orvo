@@ -51,6 +51,47 @@ abstract final class SystemChannel {
     }
   }
 
+  /// FEATURE (duplicate finder): deletes several files at once. On Android
+  /// 11+ this shows ONE system confirmation dialog covering all of them,
+  /// instead of one dialog per file. Returns true once they're gone.
+  static Future<bool> deleteSongs(List<String> uris) async {
+    if (uris.isEmpty) return false;
+    try {
+      final ok =
+          await _channel.invokeMethod<bool>('deleteMany', {'uris': uris});
+      return ok ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // --- FEATURE (backup): SAF documents ------------------------------------
+
+  /// Opens the system "Save as…" picker (Google Drive appears as a
+  /// destination when installed) and writes [content] into the chosen file.
+  /// Returns true on success, false when cancelled or the write failed.
+  static Future<bool> createDocument(String fileName, String content) async {
+    try {
+      final ok = await _channel.invokeMethod<bool>('createDocument', {
+        'fileName': fileName,
+        'content': content,
+      });
+      return ok ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Opens the system file picker and returns the picked file's text
+  /// content, or null when cancelled / unreadable.
+  static Future<String?> openDocument() async {
+    try {
+      return await _channel.invokeMethod<String>('openDocument');
+    } catch (_) {
+      return null;
+    }
+  }
+
   // --- FIX (#10): SAF lyrics folder --------------------------------------
 
   /// Opens the system folder picker. Returns the granted tree URI, or null

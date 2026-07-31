@@ -23,6 +23,20 @@ class MainActivity : AudioServiceActivity() {
     private var pendingFolderResult: MethodChannel.Result? = null
     private val lyricsFolderRequestCode = 4822
 
+    // FEATURE (backup): SAF create/open document — lets the user save the
+    // backup JSON straight into Google Drive (or Downloads, SD card…) via
+    // the system picker, and pick it back for restore. No extra permissions.
+    private var pendingCreateDocResult: MethodChannel.Result? = null
+    private var pendingCreateDocContent: String? = null
+    private val createDocRequestCode = 4823
+    private var pendingOpenDocResult: MethodChannel.Result? = null
+    private val openDocRequestCode = 4824
+
+    // FEATURE (duplicate finder): batch delete — ONE system confirmation
+    // dialog for all selected copies on Android 11+ instead of one per file.
+    private var pendingBatchDeleteResult: MethodChannel.Result? = null
+    private val batchDeleteRequestCode = 4825
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         registerSystemChannel(flutterEngine)
@@ -213,6 +227,73 @@ class MainActivity : AudioServiceActivity() {
                                 runOnUiThread { result.success(text) }
                             }.start()
                         }
+                        // FEATURE (backup): "Save as…" via the system picker.
+                        // Google Drive appears as a destination when the
+                        // Drive app is installed, so backups can go straight
+                        // to the user's Drive.
+                        "createDocument" -> {
+                            val fileName =
+                                call.argument<String>("fileName") ?: "orvo-backup.json"
+                            val content = call.argument<String>("content") ?: ""
+                            pendingCreateDocResult?.success(false)
+                            pendingCreateDocResult = result
+                            pendingCreateDocContent = content
+                            val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                                addCategory(Intent.CATEGORY_OPENABLE)
+                                type = "application/json"
+                                putExtra(Intent.EXTRA_TITLE, fileName)
+                            }
+                            startActivityForResult(intent, createDocRequestCode)
+                        }
+                        // FEATURE (backup): pick a backup file to restore.
+                        "openDocument" -> {
+                            pendingOpenDocResult?.success(null)
+                            pendingOpenDocResult = result
+                            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                                addCategory(Intent.CATEGORY_OPENABLE)
+                                type = "*/*"
+                                putExtra(
+                                    Intent.EXTRA_MIME_TYPES,
+                                    arrayOf(
+                                        "application/json",
+                                        "application/octet-stream",
+                                        "text/plain"
+                                    )
+                                )
+                            }
+                            startActivityForResult(intent, openDocRequestCode)
+                        }
+                        // FEATURE (duplicate finder): delete several files in
+                        // one scoped-storage request (single system dialog).
+                        "deleteMany" -> {
+                            @Suppress("UNCHECKED_CAST")
+                            val uriStrings =
+                                call.argument<List<String>>("uris") ?: emptyList()
+                            if (uriStrings.isEmpty()) {
+                                result.success(false)
+                            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                pendingBatchDeleteResult?.success(false)
+                                pendingBatchDeleteResult = result
+                                val uris = uriStrings.map { Uri.parse(it) }
+                                val pi = MediaStore.createDeleteRequest(
+                                    contentResolver, uris
+                                )
+                                startIntentSenderForResult(
+                                    pi.intentSender, batchDeleteRequestCode,
+                                    null, 0, 0, 0
+                                )
+                            } else {
+                                var deleted = 0
+                                for (u in uriStrings) {
+                                    try {
+                                        deleted += contentResolver.delete(
+                                            Uri.parse(u), null, null
+                                        )
+                                    } catch (_: Exception) {}
+                                }
+                                result.success(deleted > 0)
+                            }
+                        }
                         "delete" -> {
                             val uri = Uri.parse(call.argument<String>("uri")!!)
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -282,6 +363,55 @@ class MainActivity : AudioServiceActivity() {
                 pendingFolderResult?.success(null)
             }
             pendingFolderResult = null
+        }
+        // FEATURE (backup): write the JSON into the location the user chose
+        // (Drive / Downloads / …). I/O runs off the main thread.
+        if (requestCode == createDocRequestCode) {
+            val uri = data?.data
+            val content = pendingCreateDocContent
+            val result = pendingCreateDocResult
+            pendingCreateDocContent = null
+            pendingCreateDocResult = null
+            if (resultCode == RESULT_OK && uri != null && content != null) {
+                Thread {
+                    val ok = try {
+                        contentResolver.openOutputStream(uri, "wt")?.use { out ->
+                            out.write(content.toByteArray(Charsets.UTF_8))
+                            out.flush()
+                        } != null
+                    } catch (_: Exception) {
+                        false
+                    }
+                    runOnUiThread { result?.success(ok) }
+                }.start()
+            } else {
+                result?.success(false)
+            }
+        }
+        // FEATURE (backup): read the picked backup file back as text.
+        if (requestCode == openDocRequestCode) {
+            val uri = data?.data
+            val result = pendingOpenDocResult
+            pendingOpenDocResult = null
+            if (resultCode == RESULT_OK && uri != null) {
+                Thread {
+                    val text = try {
+                        contentResolver.openInputStream(uri)
+                            ?.bufferedReader(Charsets.UTF_8)
+                            ?.use { it.readText() }
+                    } catch (_: Exception) {
+                        null
+                    }
+                    runOnUiThread { result?.success(text) }
+                }.start()
+            } else {
+                result?.success(null)
+            }
+        }
+        // FEATURE (duplicate finder): batch delete confirmation result.
+        if (requestCode == batchDeleteRequestCode) {
+            pendingBatchDeleteResult?.success(resultCode == RESULT_OK)
+            pendingBatchDeleteResult = null
         }
     }
 

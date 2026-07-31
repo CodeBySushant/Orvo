@@ -36,14 +36,17 @@ class LyricsFolderNotifier extends Notifier<String?> {
 final lyricsFolderProvider =
     NotifierProvider<LyricsFolderNotifier, String?>(LyricsFolderNotifier.new);
 
-// FEATURE (#21): opt-in online lyrics (LRCLIB). Off by default so Orvo's
-// no-network privacy promise holds unless the user chooses otherwise.
+// FEATURE (#21): online lyrics (LRCLIB).
+// CHANGE (integration): ON by default now — lyrics work out of the box, and
+// found lyrics are cached in sqflite so they keep working offline. Users who
+// prefer a fully offline app can still switch it off in Settings; the toggle
+// value is persisted either way.
 const _kOnlineLyricsKey = 'orvo.onlineLyrics';
 
 class OnlineLyricsNotifier extends Notifier<bool> {
   @override
   bool build() =>
-      ref.read(sharedPreferencesProvider).getBool(_kOnlineLyricsKey) ?? false;
+      ref.read(sharedPreferencesProvider).getBool(_kOnlineLyricsKey) ?? true;
 
   void set(bool value) {
     state = value;
