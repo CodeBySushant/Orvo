@@ -66,6 +66,13 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// interruption (phone call, alarm) ends.
   bool _resumeAfterInterruption = false;
 
+  /// FIX (dual playback): kept so play() can force a REAL audio-focus
+  /// request. audio_session caches an internal "active" flag; after a
+  /// PERMANENT focus loss (another music app took over) that flag stays
+  /// true, so just_audio's automatic activation short-circuits and never
+  /// asks Android for focus again — and both apps play simultaneously.
+  AudioSession? _session;
+
   /// FEATURE (#18): opt-in — when true, paused playback auto-resumes when a
   /// Bluetooth audio device (headphones / car stereo) connects while a queue
   /// is loaded. Pushed in from the persisted setting on app start.
@@ -188,6 +195,7 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   Future<void> _init() async {
     final session = await AudioSession.instance;
+    _session = session;
     await session.configure(const AudioSessionConfiguration.music());
 
     // System playback state (notification buttons, seek bar, etc).
@@ -330,6 +338,12 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           case AudioInterruptionType.unknown:
             _resumeAfterInterruption = false;
             pause();
+            // FIX (dual playback): AUDIOFOCUS_LOSS is permanent — another
+            // app owns audio now. Deactivate the session so audio_session's
+            // cached "active" flag clears; the NEXT play() then issues a
+            // real focus request, which pauses the other app (instead of
+            // silently playing on top of it).
+            unawaited(session.setActive(false));
         }
       } else {
         switch (event.type) {
@@ -610,6 +624,20 @@ class OrvoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   @override
   Future<void> play() async {
+    // FIX (dual playback): explicitly (re)request audio focus before
+    // starting. Normally just_audio handles this, but after a permanent
+    // focus loss the cached session state can skip the real request —
+    // leaving two music apps playing on top of each other. And if Android
+    // DENIES focus (active phone call), don't start at all.
+    final session = _session;
+    if (session != null) {
+      try {
+        final granted = await session.setActive(true);
+        if (!granted) return;
+      } catch (_) {
+        // Focus bookkeeping must never hard-block playback.
+      }
+    }
     _crossfadingOut = false;
     if (fadeEnabled && !_player.playing) {
       await _player.setVolume(0);
