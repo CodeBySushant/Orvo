@@ -17,7 +17,7 @@ class AppDatabase {
     final path = p.join(await getDatabasesPath(), 'orvo.db');
     return openDatabase(
       path,
-      version: 5,
+      version: 8,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: (db, version) async {
         await db.execute('''
@@ -53,6 +53,7 @@ class AppDatabase {
         await _createPlayerState(db);
         await _createLyricsCache(db);
         await _createOnlineArt(db);
+        await _createOnlineMeta(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         // FIX (#5): v2 adds the persisted playback session.
@@ -95,6 +96,28 @@ class AppDatabase {
         if (oldVersion < 5) {
           await _createOnlineArt(db);
         }
+        // FEATURE (online metadata): v6 adds detected artist / album / year
+        // tags from MusicBrainz. The art cache is also purged once, so the
+        // rewritten (stricter) matcher can replace covers the old matcher
+        // got wrong — everything refetches lazily with the same politeness.
+        if (oldVersion < 6) {
+          await _createOnlineMeta(db);
+          await db.execute('DELETE FROM online_art');
+        }
+        // FIX (art queue stall): v7 clears negative-cache rows ("no art")
+        // that were written while slow Cover Art Archive responses were
+        // stalling the fetch queue — those songs retry with the new fast
+        // timeouts instead of silently showing no art for 14 days.
+        if (oldVersion < 7) {
+          await db.execute('DELETE FROM online_art WHERE found = 0');
+        }
+        // FIX (matcher tuning): v8 clears negative rows AND stale metadata
+        // written by the over-strict v6/v7 gates (raw-MB-title exactness,
+        // 5s duration cutoff, no server-side duration filter). Affected
+        // songs retry against the corrected matcher.
+        if (oldVersion < 8) {
+          await db.execute('DELETE FROM online_art WHERE found = 0');
+        }
       },
     );
   }
@@ -128,6 +151,26 @@ class AppDatabase {
           song_id INTEGER PRIMARY KEY,
           art BLOB,
           found INTEGER NOT NULL DEFAULT 0,
+          fetched_at INTEGER NOT NULL
+        )
+      ''');
+
+  // FEATURE (online metadata): artist / album / year detected from the best
+  // MusicBrainz match, per media-store song id. Overlaid onto songs whose
+  // LOCAL tags are `<unknown>` — real local tags are never overwritten.
+  // MBIDs + full date are cached too (spec §12/§14): identical lookups
+  // never repeat, and future features (hi-res refetch, tag export) get the
+  // ids for free.
+  static Future<void> _createOnlineMeta(Database db) => db.execute('''
+        CREATE TABLE IF NOT EXISTS online_meta(
+          song_id INTEGER PRIMARY KEY,
+          artist TEXT,
+          album TEXT,
+          year INTEGER,
+          date TEXT,
+          recording_id TEXT,
+          release_id TEXT,
+          release_group_id TEXT,
           fetched_at INTEGER NOT NULL
         )
       ''');

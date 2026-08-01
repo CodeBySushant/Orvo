@@ -816,8 +816,13 @@ class _AlbumsRow extends StatelessWidget {
           return Pressable(
             onTap: () => context.push('/album/${album.id}'),
             child: Artwork(
-              id: album.id,
-              type: ArtworkType.ALBUM,
+              // FIX (sync Issue 4): first member song's art for derived
+              // albums (includes online covers); vinyl placeholder kept.
+              id: album.artSongId ?? album.id,
+              type: album.artSongId != null
+                  ? ArtworkType.AUDIO
+                  : ArtworkType.ALBUM,
+              placeholderType: ArtworkType.ALBUM,
               fallbackText: album.title,
               size: 172,
               radius: 26,

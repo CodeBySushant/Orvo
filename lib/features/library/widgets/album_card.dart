@@ -21,8 +21,13 @@ class AlbumCard extends StatelessWidget {
         AspectRatio(
           aspectRatio: 1,
           child: Artwork(
-            id: album.id,
-            type: ArtworkType.ALBUM,
+            // FIX (sync Issue 4): derived albums render their first song's
+            // art (includes online covers); vinyl placeholder preserved.
+            id: album.artSongId ?? album.id,
+            type: album.artSongId != null
+                ? ArtworkType.AUDIO
+                : ArtworkType.ALBUM,
+            placeholderType: ArtworkType.ALBUM,
             fallbackText: album.title,
             radius: 16,
           ),

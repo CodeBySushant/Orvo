@@ -36,8 +36,13 @@ class AlbumDetailScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Artwork(
-                      id: albumId,
-                      type: ArtworkType.ALBUM,
+                      // FIX (sync Issue 4): derived album header art =
+                      // first member song's art (includes online covers).
+                      id: album?.artSongId ?? albumId,
+                      type: album?.artSongId != null
+                          ? ArtworkType.AUDIO
+                          : ArtworkType.ALBUM,
+                      placeholderType: ArtworkType.ALBUM,
                       fallbackText: album?.title ?? 'Album',
                       size: 132,
                       radius: 20,

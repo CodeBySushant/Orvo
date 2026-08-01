@@ -551,8 +551,13 @@ class _ResultsView extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Artwork(
-                          id: album.id,
-                          type: ArtworkType.ALBUM,
+                          // FIX (sync Issue 4): derived-album art = first
+                          // member song's art (includes online covers).
+                          id: album.artSongId ?? album.id,
+                          type: album.artSongId != null
+                              ? ArtworkType.AUDIO
+                              : ArtworkType.ALBUM,
+                          placeholderType: ArtworkType.ALBUM,
                           fallbackText: album.title,
                           size: 120,
                           radius: 16,

@@ -43,12 +43,18 @@ class Album {
     required this.title,
     required this.artist,
     required this.songCount,
+    this.artSongId,
   });
 
   final int id;
   final String title;
   final String artist;
   final int songCount;
+
+  /// FIX (sync Issue 4): albums are grouped by NORMALIZED NAME (not the
+  /// media store's inconsistent album ids), so album artwork renders the
+  /// first member song's art (which includes online-fetched covers).
+  final int? artSongId;
 }
 
 class Artist {

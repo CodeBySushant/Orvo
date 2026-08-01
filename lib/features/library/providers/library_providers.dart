@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:on_audio_query_pluse/on_audio_query.dart';
 
+import '../../metadata/online_artwork.dart'
+    show OnlineMeta, onlineMetaMapProvider;
 import '../data/library_repository_impl.dart';
 import '../domain/entities.dart';
 import 'exclusions_provider.dart';
@@ -27,32 +29,199 @@ final rawSongsProvider = FutureProvider<List<Song>>((ref) async {
 /// Master song list, newest first, with excluded folders filtered out.
 /// Everything downstream (albums shelf order, search, home, folders tab,
 /// genres, shuffle) derives from this, so exclusions apply everywhere.
+/// True for tags the media store couldn't read.
+bool _isUnknownTag(String s) {
+  final l = s.trim().toLowerCase();
+  return l.isEmpty ||
+      l == '<unknown>' ||
+      l == 'unknown' ||
+      l == 'unknown artist' ||
+      l == 'unknown album';
+}
+
+/// FIX (sync Issues 3 & 4): normalized grouping key — trims, collapses
+/// spaces, ignores case, drops trailing punctuation. "Divide", "divide "
+/// and "DIVIDE." all group together. Empty = unknown.
+String _groupKey(String raw) {
+  var s = raw.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+  s = s.replaceAll(RegExp(r'[\s\.\,\!\?\:\;\-\_]+$'), '');
+  return _isUnknownTag(s) ? '' : s;
+}
+
+/// Deterministic positive id from a scoped group key (FNV-1a). Stable for
+/// the whole session, so routes like /artist/:id and /album/:id keep
+/// working with derived groups.
+int _stableId(String scopedKey) {
+  var h = 0x811C9DC5;
+  for (final c in scopedKey.codeUnits) {
+    h ^= c;
+    h = (h * 0x01000193) & 0x7FFFFFFF;
+  }
+  return h == 0 ? 1 : h;
+}
+
+int _artistGroupId(String artist) =>
+    _stableId('artist:${_groupKey(artist).isEmpty ? '<unknown>' : _groupKey(artist)}');
+int _albumGroupId(String album) =>
+    _stableId('album:${_groupKey(album).isEmpty ? '<unknown>' : _groupKey(album)}');
+
+/// Master song list, newest first, with excluded folders filtered out.
+/// Everything downstream (albums shelf order, search, home, folders tab,
+/// genres, shuffle) derives from this, so exclusions apply everywhere.
 final songsProvider = FutureProvider<List<Song>>((ref) async {
   final songs = await ref.watch(rawSongsProvider.future);
   final excluded = ref.watch(excludedFoldersProvider);
-  if (excluded.isEmpty) return songs;
+  // FEATURE (online metadata): artist / album detected from MusicBrainz,
+  // overlaid ONLY where the local tag is `<unknown>`. Everything downstream
+  // (tiles, Now Playing, search, song info, media notification, the
+  // DERIVED artist and album groups below) shows the detected values
+  // automatically because it all derives from this list.
+  final meta = await ref.watch(onlineMetaMapProvider.future);
+
+  Song resolve(Song s) {
+    final OnlineMeta? m = meta[s.id];
+    var artist = s.artist;
+    var album = s.album;
+    if (m != null) {
+      if (_isUnknownTag(artist) && (m.artist?.isNotEmpty ?? false)) {
+        artist = m.artist!;
+      }
+      if (_isUnknownTag(album) && (m.album?.isNotEmpty ?? false)) {
+        album = m.album!;
+      }
+    }
+    // FIX (sync Issues 3 & 4): artistId / albumId are REWRITTEN to derived
+    // group ids based on the RESOLVED names, so grouping is consistent
+    // everywhere and enriched songs leave "Unknown Artist" automatically.
+    return Song(
+      id: s.id,
+      title: s.title,
+      artist: artist,
+      album: album,
+      albumId: _albumGroupId(album),
+      artistId: _artistGroupId(artist),
+      duration: s.duration,
+      uri: s.uri,
+      path: s.path,
+      dateAdded: s.dateAdded,
+      track: s.track,
+    );
+  }
+
   return [
     for (final s in songs)
-      if (!isExcludedPath(s.path, excluded)) s,
+      if (excluded.isEmpty || !isExcludedPath(s.path, excluded)) resolve(s),
   ];
 });
 
-final albumsProvider = FutureProvider<List<Album>>((ref) async {
-  if (!ref.watch(permissionGrantedProvider)) return const [];
-  return ref.watch(libraryRepositoryProvider).albums();
-});
-
+/// FIX (sync Issue 3): artists are DERIVED from the resolved song list —
+/// online-detected artists count, "Unknown Artist" only contains songs
+/// where both local and online artist are unavailable, and the list
+/// rebuilds automatically after every metadata enrichment.
 final artistsProvider = FutureProvider<List<Artist>>((ref) async {
-  if (!ref.watch(permissionGrantedProvider)) return const [];
-  return ref.watch(libraryRepositoryProvider).artists();
+  final songs = await ref.watch(songsProvider.future);
+  final names = <int, String>{};
+  final trackCounts = <int, int>{};
+  final albumSets = <int, Set<int>>{};
+  for (final s in songs) {
+    final id = s.artistId;
+    names.putIfAbsent(
+        id, () => _isUnknownTag(s.artist) ? 'Unknown Artist' : s.artist.trim());
+    trackCounts[id] = (trackCounts[id] ?? 0) + 1;
+    (albumSets[id] ??= <int>{}).add(s.albumId);
+  }
+  final list = [
+    for (final id in names.keys)
+      Artist(
+        id: id,
+        name: names[id]!,
+        trackCount: trackCounts[id]!,
+        albumCount: albumSets[id]!.length,
+      ),
+  ];
+  list.sort((a, b) {
+    final au = a.name == 'Unknown Artist', bu = b.name == 'Unknown Artist';
+    if (au != bu) return au ? 1 : -1; // Unknown Artist last
+    return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+  });
+  return list;
 });
 
+/// FIX (sync Issue 4): albums are DERIVED from the resolved song list,
+/// grouped by normalized name — no more duplicate "Divide"/"divide"
+/// albums, and each album's artwork comes from its first member song
+/// (which includes online-fetched covers).
+final albumsProvider = FutureProvider<List<Album>>((ref) async {
+  final songs = await ref.watch(songsProvider.future);
+  final titles = <int, String>{};
+  final artistNames = <int, Set<String>>{};
+  final counts = <int, int>{};
+  final artSong = <int, int>{};
+  for (final s in songs) {
+    final id = s.albumId;
+    titles.putIfAbsent(
+        id, () => _isUnknownTag(s.album) ? 'Unknown Album' : s.album.trim());
+    (artistNames[id] ??= <String>{})
+        .add(_isUnknownTag(s.artist) ? 'Unknown Artist' : s.artist.trim());
+    counts[id] = (counts[id] ?? 0) + 1;
+    artSong.putIfAbsent(id, () => s.id);
+  }
+  final list = [
+    for (final id in titles.keys)
+      Album(
+        id: id,
+        title: titles[id]!,
+        artist: artistNames[id]!.length == 1
+            ? artistNames[id]!.first
+            : 'Various Artists',
+        songCount: counts[id]!,
+        artSongId: artSong[id],
+      ),
+  ];
+  list.sort((a, b) {
+    final au = a.title == 'Unknown Album', bu = b.title == 'Unknown Album';
+    if (au != bu) return au ? 1 : -1; // Unknown Album last
+    return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+  });
+  return list;
+});
+
+/// Songs of a derived album, in disc/track order.
 final albumSongsProvider = FutureProvider.family<List<Song>, int>(
-  (ref, albumId) => ref.watch(libraryRepositoryProvider).albumSongs(albumId),
+  (ref, albumId) async {
+    final songs = await ref.watch(songsProvider.future);
+    final list = [
+      for (final s in songs)
+        if (s.albumId == albumId) s,
+    ];
+    list.sort((a, b) {
+      final at = a.track, bt = b.track;
+      if (at != null && bt != null && at != bt) return at.compareTo(bt);
+      if ((at == null) != (bt == null)) return at == null ? 1 : -1;
+      return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+    });
+    return list;
+  },
 );
 
+/// Songs of a derived artist, grouped by album then track order.
 final artistSongsProvider = FutureProvider.family<List<Song>, int>(
-  (ref, artistId) => ref.watch(libraryRepositoryProvider).artistSongs(artistId),
+  (ref, artistId) async {
+    final songs = await ref.watch(songsProvider.future);
+    final list = [
+      for (final s in songs)
+        if (s.artistId == artistId) s,
+    ];
+    list.sort((a, b) {
+      final byAlbum =
+          a.album.toLowerCase().compareTo(b.album.toLowerCase());
+      if (byAlbum != 0) return byAlbum;
+      final at = a.track, bt = b.track;
+      if (at != null && bt != null && at != bt) return at.compareTo(bt);
+      return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+    });
+    return list;
+  },
 );
 
 final albumByIdProvider = Provider.family<Album?, int>((ref, id) {

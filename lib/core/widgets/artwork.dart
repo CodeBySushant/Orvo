@@ -19,6 +19,13 @@ class ArtworkCache {
   /// this LRU like any media-store result.
   static Future<Uint8List?> Function(int songId)? onlineFallback;
 
+  /// FIX (stale artwork, sync Issues 1 & 2): bumped whenever the online
+  /// fallback finds NEW art. All Artwork widgets listen and reload, and the
+  /// stale "no art yet" LRU entries for that song are evicted across EVERY
+  /// size — so the 200px mini player and the 400/600px Now Playing screen
+  /// can never disagree about the same song again.
+  static final ValueNotifier<int> revision = ValueNotifier(0);
+
   final OnAudioQuery _query = OnAudioQuery();
   final LinkedHashMap<String, Uint8List?> _cache = LinkedHashMap();
   final Map<String, Future<Uint8List?>> _inflight = {};
@@ -43,6 +50,17 @@ class ArtworkCache {
           onlineFallback != null) {
         try {
           bytes = await onlineFallback!(id);
+          if (bytes != null && bytes.isNotEmpty) {
+            // FIX (sync Issue 2): another size of this song may have been
+            // cached as "no art" before the online lookup finished (e.g.
+            // the mini player's 200px). Evict those stale nulls and tell
+            // every Artwork widget to reload — the retry is instant now,
+            // because the online result is in the sqflite cache.
+            _cache.removeWhere((k, v) =>
+                (v == null || v.isEmpty) &&
+                k.startsWith('${ArtworkType.AUDIO.name}-$id-'));
+            revision.value++;
+          }
         } catch (_) {
           // Artwork must never break the UI.
         }
@@ -70,6 +88,7 @@ class Artwork extends StatelessWidget {
     this.size,
     this.radius = 12,
     this.queryScale = 400,
+    this.placeholderType,
     this.showPlaceholderIcon = true,
   });
 
@@ -79,6 +98,12 @@ class Artwork extends StatelessWidget {
   final double? size;
   final double radius;
   final int queryScale;
+
+  /// FIX (derived albums, sync Issue 4): albums are now grouped by
+  /// normalized name and render their FIRST SONG's artwork (AUDIO type),
+  /// but should keep the vinyl ALBUM placeholder when art-less. This lets
+  /// callers pick the placeholder style independently of the query type.
+  final ArtworkType? placeholderType;
 
   /// FIX (now-playing tiles): when the equalizer bars overlay this artwork
   /// for the current song, an art-less track's placeholder music-note glyph
@@ -94,24 +119,37 @@ class Artwork extends StatelessWidget {
       child: SizedBox(
         width: size,
         height: size,
-        child: FutureBuilder<Uint8List?>(
-          future: ArtworkCache.instance.load(id, type, size: queryScale),
-          builder: (context, snap) {
-            final bytes = snap.data;
-            if (bytes != null && bytes.isNotEmpty) {
-              return Image.memory(
-                bytes,
-                fit: BoxFit.cover,
-                gaplessPlayback: true,
-                filterQuality: FilterQuality.medium,
+        child: ValueListenableBuilder<int>(
+          // FIX (sync Issue 2): rebuild when the online fallback finds new
+          // art — evicted "no art" entries then reload instantly from the
+          // sqflite cache, so every screen shows the same image.
+          valueListenable: ArtworkCache.revision,
+          builder: (context, _, __) => FutureBuilder<Uint8List?>(
+            // FIX (sync Issue 1): keyed by song+type. Without the key,
+            // FutureBuilder KEEPS the previous future's data while the new
+            // one is in flight — which is exactly the "mini player shows
+            // the previous song's cover" bug. The key resets its state the
+            // moment the id changes, so an art-less song shows the
+            // placeholder immediately, never the previous song's art.
+            key: ValueKey('art-${type.name}-$id'),
+            future: ArtworkCache.instance.load(id, type, size: queryScale),
+            builder: (context, snap) {
+              final bytes = snap.data;
+              if (bytes != null && bytes.isNotEmpty) {
+                return Image.memory(
+                  bytes,
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                  filterQuality: FilterQuality.medium,
+                );
+              }
+              return _Placeholder(
+                text: fallbackText,
+                type: placeholderType ?? type,
+                showIcon: showPlaceholderIcon,
               );
-            }
-            return _Placeholder(
-              text: fallbackText,
-              type: type,
-              showIcon: showPlaceholderIcon,
-            );
-          },
+            },
+          ),
         ),
       ),
     );
