@@ -10,7 +10,7 @@ import '../../../core/theme/theme_provider.dart' show sharedPreferencesProvider;
 // ---------------------------------------------------------------------------
 // FEATURE (app icon): Snapchat-style selectable launcher icon.
 //
-// The four choices map 1:1 to the .LauncherIcon1–4 activity-aliases on the
+// The choices map 1:1 to the .LauncherIcon1–5 activity-aliases on the
 // Android side; the orvo/appicon channel enables exactly one of them.
 // The selection is also persisted in prefs so the picker can highlight the
 // current icon instantly (the channel's "current" call confirms it).
@@ -28,6 +28,7 @@ const List<AppIconOption> kAppIconOptions = [
   AppIconOption(2, 'Neon', 'assets/icons/icon2.png'),
   AppIconOption(3, 'Pulse', 'assets/icons/icon3.png'),
   AppIconOption(4, 'Glow', 'assets/icons/icon4.png'),
+  AppIconOption(5, 'Aurora', 'assets/icons/icon5.png'),
 ];
 
 const _channel = MethodChannel('orvo/appicon');

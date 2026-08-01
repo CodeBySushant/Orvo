@@ -96,7 +96,7 @@ class MainActivity : AudioServiceActivity() {
     // -----------------------------------------------------------------------
     // FEATURE (app icon): Snapchat-style selectable launcher icon.
     //
-    // All launcher entries are activity-aliases (.LauncherIcon1–4) targeting
+    // All launcher entries are activity-aliases (.LauncherIcon1–5) targeting
     // MainActivity, which itself always stays enabled — an alias only works
     // while its target activity is enabled. Selecting an icon enables exactly
     // one alias and explicitly disables the rest. DONT_KILL_APP keeps the app
@@ -104,7 +104,7 @@ class MainActivity : AudioServiceActivity() {
     // (some launchers take a few seconds or a home-screen revisit).
     // -----------------------------------------------------------------------
 
-    private val iconCount = 4
+    private val iconCount = 5
 
     private fun launcherAlias(index: Int): ComponentName =
         ComponentName(this, "$packageName.LauncherIcon$index")
