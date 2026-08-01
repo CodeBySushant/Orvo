@@ -14,6 +14,8 @@ import '../library/providers/genre_providers.dart';
 import '../library/providers/library_providers.dart';
 import '../library/widgets/song_tile.dart' show SongTile;
 import '../player/providers/player_providers.dart';
+import '../player/providers/sleep_timer.dart';
+import '../player/widgets/audio_options_sheet.dart';
 import '../playlists/data/playlist_repository.dart';
 import '../playlists/providers/playlist_providers.dart';
 import '../playlists/widgets/add_to_playlist_sheet.dart'
@@ -44,6 +46,12 @@ const _kMagentaCardB = Color(0xFF5C0F3B);
 const _kVioletIcon = Color(0xFF8B5CF6); // shuffle glyph
 const _kVioletCardA = Color(0xFF3B2F86); // Shuffle card gradient
 const _kVioletCardB = Color(0xFF251C56);
+const _kTealIcon = Color(0xFF2DD4BF); // scan glyph
+const _kTealCardA = Color(0xFF0F5654); // Scan Music card gradient
+const _kTealCardB = Color(0xFF0A3837);
+const _kAmberIcon = Color(0xFFFBBF24); // sleep glyph
+const _kAmberCardA = Color(0xFF6B4A12); // Sleep Timer card gradient
+const _kAmberCardB = Color(0xFF43300C);
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -263,7 +271,7 @@ class _MenuGlyph extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// 2 — Hero cards: Favorites + Shuffle
+// 2 — Hero cards: Favorites + Shuffle / Scan Music + Sleep Timer (2×2)
 // ---------------------------------------------------------------------------
 
 class _HeroCards extends ConsumerWidget {
@@ -272,35 +280,76 @@ class _HeroCards extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(l10nProvider);
+    final sleepActive = ref.watch(sleepTimerProvider).remaining != null;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: _HeroCard(
-              label: t.favorites,
-              icon: Icons.favorite_rounded,
-              iconColor: _kMagenta,
-              gradient: const [_kMagentaCardA, _kMagentaCardB],
-              watermark: Icons.favorite_rounded,
-              onTap: () => context.push('/collection/favorites'),
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: _HeroCard(
+                  label: t.favorites,
+                  icon: Icons.favorite_rounded,
+                  iconColor: _kMagenta,
+                  gradient: const [_kMagentaCardA, _kMagentaCardB],
+                  watermark: Icons.favorite_rounded,
+                  onTap: () => context.push('/collection/favorites'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _HeroCard(
+                  label: t.shuffle,
+                  icon: Icons.shuffle_rounded,
+                  iconColor: _kVioletIcon,
+                  gradient: const [_kVioletCardA, _kVioletCardB],
+                  watermark: Icons.arrow_outward_rounded,
+                  onTap: () {
+                    final songs =
+                        ref.read(songsProvider).valueOrNull ?? const <Song>[];
+                    if (songs.isEmpty) return;
+                    ref.read(playerControllerProvider).shuffleAll(songs);
+                  },
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: _HeroCard(
-              label: t.shuffle,
-              icon: Icons.shuffle_rounded,
-              iconColor: _kVioletIcon,
-              gradient: const [_kVioletCardA, _kVioletCardB],
-              watermark: Icons.arrow_outward_rounded,
-              onTap: () {
-                final songs =
-                    ref.read(songsProvider).valueOrNull ?? const <Song>[];
-                if (songs.isEmpty) return;
-                ref.read(playerControllerProvider).shuffleAll(songs);
-              },
-            ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _HeroCard(
+                  label: t.scanMusic,
+                  icon: Icons.radar_rounded,
+                  iconColor: _kTealIcon,
+                  gradient: const [_kTealCardA, _kTealCardB],
+                  watermark: Icons.graphic_eq_rounded,
+                  onTap: () {
+                    // Same invalidations as pull-to-refresh: re-query the
+                    // media store; albums / artists re-derive automatically.
+                    ref.invalidate(rawSongsProvider);
+                    ScaffoldMessenger.of(context)
+                      ..clearSnackBars()
+                      ..showSnackBar(
+                          SnackBar(content: Text(t.scanningLibrary)));
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _HeroCard(
+                  label: t.sleepTimer,
+                  icon: sleepActive
+                      ? Icons.nightlight_round
+                      : Icons.bedtime_outlined,
+                  iconColor: _kAmberIcon,
+                  gradient: const [_kAmberCardA, _kAmberCardB],
+                  watermark: Icons.nightlight_round,
+                  onTap: () => AudioOptionsSheet.show(context),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -327,13 +376,15 @@ class _HeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Slimmer than the original 100px cards — with four of them, the
+    // tighter height + softer radius reads more premium, less bulky.
     return Pressable(
       onTap: onTap,
       child: Container(
-        height: 100,
+        height: 78,
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(20),
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -344,17 +395,17 @@ class _HeroCard extends StatelessWidget {
           children: [
             // Oversized faint glyph bleeding off the corner (mockup detail).
             Positioned(
-              right: -18,
-              bottom: -22,
+              right: -16,
+              bottom: -20,
               child: Icon(watermark,
-                  size: 96, color: Colors.white.withOpacity(.10)),
+                  size: 78, color: Colors.white.withOpacity(.10)),
             ),
             Center(
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(icon, color: iconColor, size: 30),
-                  const SizedBox(width: 12),
+                  Icon(icon, color: iconColor, size: 24),
+                  const SizedBox(width: 10),
                   Flexible(
                     child: Text(
                       label,
@@ -362,7 +413,7 @@ class _HeroCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 18,
+                        fontSize: 15.5,
                         fontWeight: FontWeight.w800,
                         letterSpacing: .2,
                       ),
@@ -531,14 +582,16 @@ class _MyPlaylistRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // REDESIGN (premium pass): tighter 100px cards — the slimmer footprint
+    // with the same rich duotones reads more editorial, less bulky.
     return SizedBox(
-      height: 116,
+      height: 100,
       child: ListView.separated(
         physics: const BouncingScrollPhysics(),
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20),
         itemCount: playlists.length + 1,
-        separatorBuilder: (_, __) => const SizedBox(width: 14),
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (context, i) {
           if (i == 0) {
             // “+” create card — magenta block, exactly like the mockup.
@@ -551,9 +604,9 @@ class _MyPlaylistRow extends ConsumerWidget {
                 if (context.mounted) context.go('/playlist/$id');
               },
               child: Container(
-                width: 116,
+                width: 100,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(20),
                   gradient: const LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -561,7 +614,7 @@ class _MyPlaylistRow extends ConsumerWidget {
                   ),
                 ),
                 child: const Center(
-                  child: Icon(Icons.add_rounded, color: _kMagenta, size: 44),
+                  child: Icon(Icons.add_rounded, color: _kMagenta, size: 36),
                 ),
               ),
             );
@@ -581,10 +634,10 @@ class _MyPlaylistRow extends ConsumerWidget {
           return Pressable(
             onTap: () => context.go('/playlist/${playlist.id}'),
             child: Container(
-              width: 116,
+              width: 100,
               clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(20),
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -608,18 +661,18 @@ class _MyPlaylistRow extends ConsumerWidget {
                 children: [
                   // Oversized faint glyph bleeding off the corner.
                   Positioned(
-                    right: -16,
-                    bottom: -18,
+                    right: -14,
+                    bottom: -16,
                     child: Icon(Icons.queue_music_rounded,
-                        size: 84, color: Colors.white.withOpacity(.12)),
+                        size: 70, color: Colors.white.withOpacity(.12)),
                   ),
                   // Soft sheen in the top-left for depth.
                   Positioned(
-                    top: -34,
-                    left: -34,
+                    top: -30,
+                    left: -30,
                     child: Container(
-                      width: 96,
-                      height: 96,
+                      width: 82,
+                      height: 82,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: RadialGradient(
@@ -632,22 +685,22 @@ class _MyPlaylistRow extends ConsumerWidget {
                     ),
                   ),
                   Padding(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(10),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Frosted icon chip.
                         Container(
-                          width: 30,
-                          height: 30,
+                          width: 26,
+                          height: 26,
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(.16),
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(9),
                             border: Border.all(
                                 color: Colors.white.withOpacity(.18)),
                           ),
                           child: const Icon(Icons.music_note_rounded,
-                              color: Colors.white, size: 17),
+                              color: Colors.white, size: 15),
                         ),
                         const Spacer(),
                         Text(playlist.name,
@@ -655,16 +708,16 @@ class _MyPlaylistRow extends ConsumerWidget {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 14.5,
+                                fontSize: 13,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: -.2)),
-                        const SizedBox(height: 3),
+                        const SizedBox(height: 2),
                         Text(
                           ref.watch(l10nProvider)
                               .nSongsExact(playlist.songCount),
                           style: TextStyle(
                               color: Colors.white.withOpacity(.78),
-                              fontSize: 11,
+                              fontSize: 10.5,
                               fontWeight: FontWeight.w600),
                         ),
                       ],
@@ -742,28 +795,33 @@ class _ArtistTile extends ConsumerWidget {
     return Pressable(
       onTap: () => context.push('/artist/${artist.id}'),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 7, 8, 7),
+        padding: const EdgeInsets.fromLTRB(20, 6, 8, 6),
         child: Row(
           children: [
+            // REDESIGN (premium pass): rounded SQUARE tile — matches the
+            // album art, playlist cards and hero cards instead of being the
+            // one circular element on the page. Subtle tinted border ties
+            // it to the artist's accent color.
             Container(
-              width: 58,
-              height: 58,
+              width: 52,
+              height: 52,
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
+                borderRadius: BorderRadius.circular(16),
                 color: theme.colorScheme.surfaceContainerHigh.withOpacity(.7),
+                border: Border.all(color: color.withOpacity(.28)),
               ),
               child: Center(
                 child: Text(
                   initial,
                   style: TextStyle(
                     color: color,
-                    fontSize: 21,
+                    fontSize: 19,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -803,30 +861,62 @@ class _AlbumsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // REDESIGN (premium pass): smaller 124px art with a two-line editorial
+    // caption (title + artist) — the caption is what makes the smaller card
+    // read premium instead of sparse. Net row height still shrinks vs the
+    // old bare 172px tiles.
+    final theme = Theme.of(context);
     return SizedBox(
-      height: 172,
+      height: 168,
       child: ListView.separated(
         physics: const BouncingScrollPhysics(),
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20),
         itemCount: albums.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 16),
+        separatorBuilder: (_, __) => const SizedBox(width: 14),
         itemBuilder: (context, i) {
           final album = albums[i];
           return Pressable(
             onTap: () => context.push('/album/${album.id}'),
-            child: Artwork(
-              // FIX (sync Issue 4): first member song's art for derived
-              // albums (includes online covers); vinyl placeholder kept.
-              id: album.artSongId ?? album.id,
-              type: album.artSongId != null
-                  ? ArtworkType.AUDIO
-                  : ArtworkType.ALBUM,
-              placeholderType: ArtworkType.ALBUM,
-              fallbackText: album.title,
-              size: 172,
-              radius: 26,
-              queryScale: 344,
+            child: SizedBox(
+              width: 124,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Artwork(
+                    // FIX (sync Issue 4): first member song's art for
+                    // derived albums (includes online covers).
+                    id: album.artSongId ?? album.id,
+                    type: album.artSongId != null
+                        ? ArtworkType.AUDIO
+                        : ArtworkType.ALBUM,
+                    placeholderType: ArtworkType.ALBUM,
+                    fallbackText: album.title,
+                    size: 124,
+                    radius: 18,
+                    queryScale: 248,
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    album.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall!.copyWith(
+                        fontSize: 12.5, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    album.artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelSmall!.copyWith(
+                      fontSize: 10.5,
+                      color:
+                          theme.colorScheme.onSurface.withOpacity(.55),
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         },

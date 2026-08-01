@@ -83,6 +83,8 @@ class L10n {
   // REDESIGN v3 (mockup home): hero cards + new shelf titles.
   String get favorites => _s(['Favorites', 'पसंदीदा', 'Favoritos', 'お気に入り', '즐겨찾기', 'Favoriten', 'Favoris', 'Избранное']);
   String get shuffle => _s(['Shuffle', 'शफ़ल', 'Aleatorio', 'シャッフル', '셔플', 'Zufällig', 'Aléatoire', 'Перемешать']);
+  String get scanMusic => _s(['Scan Music', 'म्यूज़िक स्कैन', 'Escanear música', 'ミュージックをスキャン', '음악 스캔', 'Musik scannen', 'Analyser la musique', 'Сканировать музыку']);
+  String get scanningLibrary => _s(['Scanning your library…', 'लाइब्रेरी स्कैन हो रही है…', 'Escaneando tu biblioteca…', 'ライブラリをスキャン中…', '라이브러리 스캔 중…', 'Bibliothek wird gescannt…', 'Analyse de votre bibliothèque…', 'Сканирование библиотеки…']);
   String get myPlaylist => _s(['My Playlist', 'मेरी प्लेलिस्ट', 'Mi playlist', 'マイプレイリスト', '내 재생목록', 'Meine Playlist', 'Ma playlist', 'Мой плейлист']);
   String get lastAdded => _s(['Last Added', 'हाल में जोड़े गए', 'Añadidos recientemente', '最近追加', '최근 추가', 'Zuletzt hinzugefügt', 'Derniers ajouts', 'Недавно добавленные']);
   String get mostPlayed => _s(['Most Played', 'सबसे ज़्यादा चलाए गए', 'Más reproducidos', 'よく再生する曲', '자주 재생한 곡', 'Meistgespielt', 'Les plus écoutés', 'Часто прослушиваемые']);
